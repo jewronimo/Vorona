@@ -1,0 +1,27 @@
+[package]
+name = "vstone-core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "vstone_core"
+crate-type = ["rlib", "cdylib"]
+
+[[bin]]
+name = "vstone-core"
+path = "src/main.rs"
+
+[features]
+python = ["dep:pyo3", "dep:pyo3-build-config"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+sha2 = "0.10"
+pyo3 = { version = "0.27", optional = true, features = ["extension-module", "abi3-py311"] }
+
+[dev-dependencies]
+jsonschema = "0.33"
+
+[build-dependencies]
+pyo3-build-config = { version = "0.27", optional = true }
