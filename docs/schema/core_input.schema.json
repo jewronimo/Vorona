@@ -1,0 +1,624 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/CoreInput",
+  "$defs": {
+    "CoreInput": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string",
+          "const": "vstone.core_input/1"
+        },
+        "surface": {
+          "$ref": "#/$defs/Surface"
+        },
+        "params": {
+          "$ref": "#/$defs/Params"
+        }
+      },
+      "required": [
+        "schema",
+        "surface",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    "Surface": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "revolve"
+          ]
+        },
+        "profile": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "profile"
+      ],
+      "additionalProperties": false
+    },
+    "Params": {
+      "type": "object",
+      "properties": {
+        "thickness": {
+          "type": "number"
+        },
+        "allowed_sides": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "target_size": {
+          "type": "number"
+        },
+        "size_variation": {
+          "type": "string",
+          "enum": [
+            "tight",
+            "wide"
+          ]
+        },
+        "randomness": {
+          "type": "number"
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ends": {
+          "$ref": "#/$defs/Ends"
+        },
+        "rims": {
+          "$ref": "#/$defs/Rims"
+        },
+        "min_edge": {
+          "type": "number"
+        },
+        "max_edge": {
+          "type": "number"
+        },
+        "min_corner_angle_deg": {
+          "type": "number"
+        },
+        "bevel_cap_deg": {
+          "type": "number"
+        },
+        "surface_tolerance": {
+          "type": "number"
+        },
+        "min_bounding_square": {
+          "type": "number"
+        },
+        "allow_waists": {
+          "type": "boolean"
+        },
+        "blank_size": {
+          "type": "number"
+        },
+        "blank_usable": {
+          "type": "number"
+        },
+        "nest_gap": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "thickness",
+        "allowed_sides",
+        "target_size",
+        "size_variation",
+        "randomness",
+        "seed",
+        "ends",
+        "rims",
+        "min_edge",
+        "max_edge",
+        "min_corner_angle_deg",
+        "bevel_cap_deg",
+        "surface_tolerance",
+        "min_bounding_square",
+        "allow_waists",
+        "blank_size",
+        "blank_usable",
+        "nest_gap"
+      ],
+      "additionalProperties": false
+    },
+    "Ends": {
+      "type": "object",
+      "properties": {
+        "top": {
+          "type": "string",
+          "enum": [
+            "open"
+          ]
+        },
+        "bottom": {
+          "type": "string",
+          "enum": [
+            "open"
+          ]
+        }
+      },
+      "required": [
+        "top",
+        "bottom"
+      ],
+      "additionalProperties": false
+    },
+    "Rims": {
+      "type": "object",
+      "properties": {
+        "top": {
+          "type": "string",
+          "enum": [
+            "level",
+            "whole"
+          ]
+        },
+        "bottom": {
+          "type": "string",
+          "enum": [
+            "level",
+            "whole"
+          ]
+        }
+      },
+      "required": [
+        "top",
+        "bottom"
+      ],
+      "additionalProperties": false
+    },
+    "CoreOutput": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string",
+          "const": "vstone.core_output/1"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "infeasible",
+            "failed_validation",
+            "error"
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "feasibility": {
+          "$ref": "#/$defs/Feasibility"
+        },
+        "pieces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Piece"
+          }
+        },
+        "blanks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Blank"
+          }
+        },
+        "validation": {
+          "$ref": "#/$defs/Validation"
+        },
+        "stats": {
+          "$ref": "#/$defs/Stats"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        }
+      },
+      "required": [
+        "schema",
+        "status",
+        "message",
+        "feasibility",
+        "pieces",
+        "blanks",
+        "validation",
+        "stats",
+        "provenance"
+      ],
+      "additionalProperties": false
+    },
+    "Feasibility": {
+      "type": "object",
+      "properties": {
+        "feasible": {
+          "type": "boolean"
+        },
+        "pentagons_needed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "heptagons_needed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "column_changes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "small_radius_ranges": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
+        "waist_ranges": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
+        "suggestions": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "required": [
+        "feasible",
+        "pentagons_needed",
+        "heptagons_needed",
+        "column_changes",
+        "columns",
+        "small_radius_ranges",
+        "waist_ranges",
+        "suggestions"
+      ],
+      "additionalProperties": false
+    },
+    "Piece": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "sides": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "partial": {
+          "type": "boolean"
+        },
+        "plane": {
+          "$ref": "#/$defs/Plane"
+        },
+        "outer": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 3,
+            "maxItems": 3
+          }
+        },
+        "inner": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 3,
+            "maxItems": 3
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Edge"
+          }
+        },
+        "corner_angles_deg": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "face_depth": {
+          "type": "number"
+        },
+        "bounding_square": {
+          "type": "number"
+        },
+        "flat_xform": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 4,
+            "maxItems": 4
+          },
+          "minItems": 4,
+          "maxItems": 4
+        },
+        "blank": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blank_xform": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 4,
+            "maxItems": 4
+          },
+          "minItems": 4,
+          "maxItems": 4
+        },
+        "map_uv": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          }
+        }
+      },
+      "required": [
+        "id",
+        "sides",
+        "partial",
+        "plane",
+        "outer",
+        "inner",
+        "edges",
+        "corner_angles_deg",
+        "face_depth",
+        "bounding_square",
+        "flat_xform",
+        "blank",
+        "blank_xform",
+        "map_uv"
+      ],
+      "additionalProperties": false
+    },
+    "Plane": {
+      "type": "object",
+      "properties": {
+        "n": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "d": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "n",
+        "d"
+      ],
+      "additionalProperties": false
+    },
+    "Edge": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "to": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "neighbor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "joint",
+            "rim_level",
+            "rim_whole"
+          ]
+        },
+        "length": {
+          "type": "number"
+        },
+        "bevel_deg": {
+          "type": "number"
+        },
+        "side_normal": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "neighbor",
+        "kind",
+        "length",
+        "bevel_deg",
+        "side_normal"
+      ],
+      "additionalProperties": false
+    },
+    "Blank": {
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pieces": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "index",
+        "pieces"
+      ],
+      "additionalProperties": false
+    },
+    "Validation": {
+      "type": "object",
+      "properties": {
+        "passed": {
+          "type": "boolean"
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Check"
+          }
+        }
+      },
+      "required": [
+        "passed",
+        "checks"
+      ],
+      "additionalProperties": false
+    },
+    "Check": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "passed": {
+          "type": "boolean"
+        },
+        "failures": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "passed",
+        "failures"
+      ],
+      "additionalProperties": false
+    },
+    "Stats": {
+      "type": "object",
+      "properties": {
+        "piece_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "by_sides": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "blanks_used": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_bevel_deg": {
+          "type": "number"
+        },
+        "max_face_depth": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "piece_count",
+        "by_sides",
+        "blanks_used",
+        "max_bevel_deg",
+        "max_face_depth"
+      ],
+      "additionalProperties": false
+    },
+    "Provenance": {
+      "type": "object",
+      "properties": {
+        "core_version": {
+          "type": "string"
+        },
+        "input_sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "core_version",
+        "input_sha256"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

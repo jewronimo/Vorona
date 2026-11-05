@@ -1,0 +1,40 @@
+# Reference run: 18 in diameter x 60 in tall open cylinder, hexagons only.
+# All lengths in inches. Values marked (open) are defaults Jerry has not confirmed.
+
+[input]
+kind = "revolve"                      # "revolve" (v1) | "surface" (later, L1)
+profile = "examples/cylinder_18x60_profile.step"
+
+[stone]
+thickness = 0.375
+
+[pattern]
+allowed_sides = [6]                   # any subset of 4..9
+target_size = 6.5                     # average piece width
+size_variation = "tight"              # "tight" = +-15 %, "wide" = +-40 %   (open)
+randomness = 0.0                      # 0 = regular, 1 = organic
+seed = 42
+
+[ends]
+top = "open"
+bottom = "open"
+top_rim = "level"                     # "level" = keep partial pieces, "whole" = uneven rim
+bottom_rim = "level"
+
+[limits]
+min_edge = 1.0                        # (open)
+max_edge = 6.0                        # (open)
+min_corner_angle_deg = 70.0           # (open)
+bevel_cap_deg = 60.0
+surface_tolerance = 0.5               # max face depth inside the true surface (open)
+min_bounding_square = 4.0             # (open: "bounding square >= 4")
+allow_waists = false
+
+[blanks]
+size = 12.0
+usable = 11.5                         # (open)
+nest_gap = 0.25
+
+[output]
+dir = "runs"
+preview = true                        # write preview.glb
