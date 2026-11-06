@@ -123,6 +123,13 @@ fn ring_geometry_and_nesting() {
             pts.push(apply(p.blank_xform, f));
             pts.push(apply(p.blank_xform, g));
         }
+        let map_area: f64 = (0..4)
+            .map(|k| {
+                let (a, b) = (p.map_uv[k], p.map_uv[(k + 1) % 4]);
+                a[0] * b[1] - b[0] * a[1]
+            })
+            .sum();
+        assert!(map_area > 0., "{} map_uv is mirrored", p.id);
         let centroid = std::array::from_fn(|i| p.outer.iter().map(|p| p[i]).sum::<f64>() / 4.);
         for x in apply(p.flat_xform, centroid) {
             near(x, 0.);

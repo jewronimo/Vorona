@@ -52,3 +52,11 @@ Any real geometry. The stub output is hand-built (computed in the test helper), 
 - `cargo build --features python --lib`: pass; `vstone_core` native extension directly loaded and called successfully on Python 3.14.5.
 - `make check PYTHON=.venv/bin/python`: Rust checks and ruff pass; ordinary pytest fails because `vstone_core` is not installed. Both scaffold pytest tests pass when the native library is explicitly loaded into that process.
 - **S1 packaging blocker, outside C0 ownership:** `maturin develop --features python --skip-install` rejects the parent's provisional `python-source = "py"`, `module-name = "vstone_core"` layout because `py/vstone_core` does not exist. Parent must reconcile its Python package layout with maturin before an installed-module `make check` can pass. The Rust module name and `PyInit_vstone_core` export match the contract; C0 does not change the Python scaffold to mask this failure.
+
+### Review 2026-11-06 (Claude)
+- Ring12 numbers checked independently: plane distance 8.693332 (= 9·cos 15°), width 4.6587, joint bevels 15°,
+  rim bevels 0°, face depth 0.3067, 4 blanks × 3 pieces, ids P001–P012 counter-clockwise from θ = 0.
+- Fixed per A03 §1: `map_uv` was mirrored (all polygons clockwise). Fixture `map_uv` regenerated with
+  φ = 2π − θ; `ring_geometry_and_nesting` now asserts positive map area. No other fixture values changed.
+- Verified in `Vorona-dev`: 4/4 tests pass, fmt/clippy clean (A02 rule 1).
+
