@@ -1,4 +1,4 @@
-.PHONY: check core-test py-test dev dev-image dev-check dev-shell
+.PHONY: check core-test py-test dev dev-image dev-up dev-down dev-check dev-shell
 
 check: core-test py-test
 
@@ -11,19 +11,27 @@ py-test:
 dev:
 	maturin develop
 
-DEV_RUN = docker run --rm --name vstone-dev-run --cpus=4 --memory=4g \
- -v "$(CURDIR)":/src \
- -v vstone-cargo-target:/src/core/target \
- -v vstone-cargo-registry:/usr/local/cargo/registry \
- vstone-dev:latest
+DEV_CONTAINER = vstone-dev
 
 dev-image:
 	docker build -f Dockerfile.dev -t vstone-dev:latest .
 
-dev-check:
-	$(DEV_RUN) bash -c 'pip install --no-deps -e . && make check'
+# Persistent container: survives between `make` invocations, so dev-check
+# doesn't pay container-creation + reinstall cost every run, and you can
+# `make dev-shell` into the exact same container a failing dev-check just used.
+dev-up:
+	@docker ps -q -f name=^/$(DEV_CONTAINER)$$ | grep -q . || \
+	docker run -d --name $(DEV_CONTAINER) --cpus=4 --memory=4g \
+	 -v "$(CURDIR)":/src \
+	 -v vstone-cargo-target:/src/core/target \
+	 -v vstone-cargo-registry:/usr/local/cargo/registry \
+	 vstone-dev:latest tail -f /dev/null
 
-dev-shell:
-	docker run --rm -it --name vstone-dev-shell --cpus=4 --memory=4g \
- -v "$(CURDIR)":/src -v vstone-cargo-target:/src/core/target \
- -v vstone-cargo-registry:/usr/local/cargo/registry vstone-dev:latest bash
+dev-down:
+	docker rm -f $(DEV_CONTAINER) >/dev/null 2>&1 || true
+
+dev-check: dev-up
+	docker exec $(DEV_CONTAINER) bash -c 'pip install --no-deps -e . && make check'
+
+dev-shell: dev-up
+	docker exec -it $(DEV_CONTAINER) bash
