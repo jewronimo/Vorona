@@ -17,7 +17,8 @@ vstone = "vstone.cli:main"
 [tool.maturin]
 manifest-path = "core/Cargo.toml"
 features = ["python"]
-module-name = "vstone_core"
+python-source = "py"
+module-name = "vstone.vstone_core"
 
 [tool.pytest.ini_options]
 testpaths = ["tests/py"]

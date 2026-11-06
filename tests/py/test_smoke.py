@@ -23,3 +23,10 @@ def test_shared_tolerances():
         match = re.search(rf"\b{name}\s*:\s*f64\s*=\s*([^;]+);", source)
         assert match is not None, name
         assert float(match.group(1).replace("_", "")) == getattr(tol, name)
+
+
+def test_cli_entry_point():
+    from importlib.metadata import entry_points
+
+    (entry,) = [e for e in entry_points(group="console_scripts") if e.name == "vstone"]
+    assert entry.load().__name__ == "main"

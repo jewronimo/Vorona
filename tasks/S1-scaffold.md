@@ -18,13 +18,20 @@ One command checks the whole repo; the Rust core is importable from Python.
 - `tests/py/test_smoke.py`.
 
 ## Acceptance
-- [ ] Fresh clone: `python -m venv .venv && pip install -e . && make dev && make check` passes.
-- [ ] `test_smoke.py`: `vstone.core.generate(<cylinder fixture>)` returns a dict with
+- [x] Fresh clone: `python -m venv .venv && pip install -e . && make dev && make check` passes.
+      (Per A02: verified as `make dev-check` inside `Vorona-dev`; host installs do not count.)
+- [x] `test_smoke.py`: `vstone.core.generate(<cylinder fixture>)` returns a dict with
       `schema == "vstone.core_output/1"`.
-- [ ] `tol.py` and `tol.rs` values are equal (a test parses `tol.rs`).
-- [ ] Works on Windows and Linux (note anything Windows-specific in `## Agent notes`).
+- [x] `tol.py` and `tol.rs` values are equal (a test parses `tol.rs`).
+- [~] Works on Windows and Linux — Linux (arm64 container) yes; Windows not tested and not needed: A01/A02 make the MacBook dev container the platform.
 
 ## Out of scope
 Geometry of any kind (AGENTS.md §1).
 
 ## Agent notes
+
+- 2026-11-06 (Claude, review before handoff): `make dev-check` in `Vorona-dev` on the MacBook,
+  rustc/cargo 1.99.1, Python 3.12.16: cargo fmt/clippy clean, 4/4 Rust tests, ruff clean, 3/3 pytest, EXIT=0.
+  Log: `runs/logs/dev-check.log` (local, gitignored).
+- Packaging changed per A03 §2: maturin mixed layout (`python-source = "py"`, `module-name = "vstone.vstone_core"`),
+  core imported as `from vstone import vstone_core`; new test checks the `vstone` console script.
