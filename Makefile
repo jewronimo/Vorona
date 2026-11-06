@@ -11,7 +11,7 @@ py-test:
 dev:
 	maturin develop
 
-DEV_CONTAINER = vstone-dev
+DEV_CONTAINER = Vorona-dev
 
 dev-image:
 	docker build -f Dockerfile.dev -t vstone-dev:latest .
