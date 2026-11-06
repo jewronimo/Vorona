@@ -69,6 +69,31 @@ No new dependency unless the card lists it, or you add it under `## Agent notes`
 - Public functions have a doc comment saying units and what can fail.
 - A `GATE` card is only done when Jerry writes `Approved` under it.
 
+## 7a. Rust runs in the dev container on this machine — never natively
+
+On Jerry's Mac specifically, all Rust work (`core-test`, `cargo` anything, `make dev`,
+`make check`) runs **inside the `vstone-dev` Docker container**, not on the host.
+Do not `brew install rust` / `rustup install` / run bare `cargo` on the host — if a
+command needs a Rust toolchain and you're not already inside the container, use one
+of these instead of installing anything:
+
+```
+make dev-image   # build the image (once, or after Dockerfile.dev changes)
+make dev-check    # one-shot: pip install -e . + make check, inside the container
+make dev-shell    # interactive shell inside the container, repo mounted at /src
+```
+
+`Dockerfile.dev` pins the exact toolchain from `rust-toolchain.toml` (currently
+`1.95.0`) — if you bump one, bump the other in the same commit. `core/target` and
+Cargo's registry are named Docker volumes (`vstone-cargo-target`,
+`vstone-cargo-registry`), not the host's `core/target` — don't expect host-side
+`core/target` contents to be reused by the container, and don't commit it (already
+gitignored).
+
+If `docker` or the container genuinely isn't available, say exactly that — the real
+error, not a guess about "remote environment" or similar. Verify with `docker ps`
+before claiming Docker itself is unavailable.
+
 ## 7. Commands
 
 ```

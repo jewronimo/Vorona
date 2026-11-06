@@ -1,0 +1,19 @@
+FROM python:3.12-slim-bookworm
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends build-essential curl ca-certificates git make pkg-config \
+ && rm -rf /var/lib/apt/lists/*
+
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/opt/venv/bin:/usr/local/cargo/bin:$PATH
+
+# Pinned to match rust-toolchain.toml so the image never silently drifts from the repo's pin.
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+    | sh -s -- -y --profile minimal --component rustfmt,clippy --default-toolchain 1.95.0
+
+RUN python -m venv /opt/venv \
+ && pip install --no-cache-dir maturin pytest ruff jsonschema pypdf \
+ && pip install --no-cache-dir build123d numpy reportlab trimesh
+
+WORKDIR /src
