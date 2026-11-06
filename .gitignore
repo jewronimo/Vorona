@@ -6,3 +6,13 @@ __pycache__/
 *.pyd
 .pytest_cache/
 .ruff_cache/
+
+# OpenClaw agent files for the vorona-core subagent (local, not part of the project)
+IDENTITY.md
+SOUL.md
+USER.md
+MEMORY.md
+DREAMS.md
+memory/
+skills/
+.openclaw/
