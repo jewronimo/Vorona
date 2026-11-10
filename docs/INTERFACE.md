@@ -29,7 +29,7 @@ All lengths in inches, angles in degrees, points as `[x, y, z]`, Y up.
     "thickness": 0.375,
     "allowed_sides": [6],
     "target_size": 6.5,
-    "size_variation": "tight",
+    "size_variation": 0.15,
     "randomness": 0.0,
     "seed": 42,
     "ends":  { "top": "open", "bottom": "open" },
@@ -131,3 +131,12 @@ Task C0 ships `tests/fixtures/core_output_ring12.json`: a valid output for one r
 face plane at `9·cos 15° = 8.693`, tile width `2·9·sin 15° = 4.659`, joint bevels 15°,
 level rims top and bottom, thickness 0.375). Every number in it is exact and hand-checkable.
 SHELL builds S3–S6 against it before the real core exists.
+
+## Size variation (A04)
+
+TOML accepts percentages 5–50 (default 15), with shell-only shortcuts `tight` = 15
+and `wide` = 40. Python divides by 100. CoreInput requires a finite numeric
+fraction 0.05–0.50 inclusive, never strings or an omitted default. Both JSON
+schemas carry this constraint. Suggestions remain side sets at the current
+variation; messages separately name the smallest working increased variation,
+rounded upward to 5 percentage points. Python migration is a separate SHELL step.

@@ -20,7 +20,7 @@ pub struct Params {
     pub thickness: f64,
     pub allowed_sides: Vec<u32>,
     pub target_size: f64,
-    pub size_variation: String,
+    pub size_variation: f64,
     pub randomness: f64,
     pub seed: u64,
     pub ends: Ends,

@@ -67,11 +67,9 @@
           "type": "number"
         },
         "size_variation": {
-          "type": "string",
-          "enum": [
-            "tight",
-            "wide"
-          ]
+          "type": "number",
+          "minimum": 0.05,
+          "maximum": 0.5
         },
         "randomness": {
           "type": "number"

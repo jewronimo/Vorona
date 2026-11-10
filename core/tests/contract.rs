@@ -193,3 +193,48 @@ fn ring_input_provenance() {
         format!("{:x}", Sha256::digest(raw))
     );
 }
+
+#[test]
+fn numeric_variation_contract_and_range() {
+    let schema: serde_json::Value =
+        serde_json::from_str(include_str!("../../docs/schema/core_input.schema.json")).unwrap();
+    let validator = jsonschema::draft202012::new(&schema).unwrap();
+    for value in [
+        serde_json::json!(0.05),
+        serde_json::json!(0.23),
+        serde_json::json!(0.50),
+    ] {
+        let mut raw: serde_json::Value = serde_json::from_str(INPUT).unwrap();
+        raw["params"]["size_variation"] = value;
+        assert!(validator.is_valid(&raw));
+        let input: CoreInput = serde_json::from_value(raw).unwrap();
+        assert!(!vstone_core::feasibility_only(&input)
+            .message
+            .starts_with("invalid"));
+    }
+    for value in [
+        serde_json::json!(0.049),
+        serde_json::json!(0.501),
+        serde_json::json!(15),
+        serde_json::json!("tight"),
+        serde_json::json!("wide"),
+        serde_json::Value::Null,
+    ] {
+        let mut raw: serde_json::Value = serde_json::from_str(INPUT).unwrap();
+        raw["params"]["size_variation"] = value;
+        assert!(!validator.is_valid(&raw));
+        let output: CoreOutput =
+            serde_json::from_str(&vstone_core::feasibility_only_json(&raw.to_string())).unwrap();
+        assert_eq!(output.status, "error");
+    }
+    let mut raw: serde_json::Value = serde_json::from_str(INPUT).unwrap();
+    raw["params"]
+        .as_object_mut()
+        .unwrap()
+        .remove("size_variation");
+    assert!(!validator.is_valid(&raw));
+    assert!(serde_json::from_value::<CoreInput>(raw).is_err());
+    let output_schema: serde_json::Value =
+        serde_json::from_str(include_str!("../../docs/schema/core_output.schema.json")).unwrap();
+    assert_eq!(schema["$defs"]["Params"], output_schema["$defs"]["Params"]);
+}
