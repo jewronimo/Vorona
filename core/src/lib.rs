@@ -2,6 +2,7 @@
 pub mod model;
 #[cfg(feature = "python")]
 mod py;
+pub mod surface;
 pub mod tol;
 use model::*;
 use sha2::{Digest, Sha256};
