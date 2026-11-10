@@ -20,10 +20,29 @@ Turn a TOML config + STEP profile into a valid CoreInput.
   `examples/cylinder_18x60_profile.step`.
 
 ## Acceptance
-- [ ] Example config loads; produces CoreInput equal to `tests/fixtures/core_input_cylinder.json`
+- [x] Example config loads; produces CoreInput equal to `tests/fixtures/core_input_cylinder.json`
       except for profile sampling density (compare endpoints and radius).
-- [ ] Each bad STEP raises `ProfileError` with a message that names the problem.
-- [ ] Config errors: wrong type, side count 3 or 10, unknown rim style → `ConfigError` naming the key.
-- [ ] No geometry decisions in Python (sampling a curve is allowed; everything else goes to core).
+- [x] Each bad STEP raises `ProfileError` with a message that names the problem.
+- [x] Config errors: wrong type, side count 3 or 10, unknown rim style → `ConfigError` naming the key.
+- [x] No geometry decisions in Python (sampling a curve is allowed; everything else goes to core).
 
 ## Agent notes
+
+- Based on unreviewed draft/S2-qwen-v1; replaced BREP import/export and placeholder
+  chain handling with actual AP214 STEP, connected-wire validation and OpenCascade
+  deflection sampling. Import converts CAD millimetres to contract inches; fixtures
+  explicitly export inch units with fixed timestamps.
+- A04 percent/default/shortcut conversion is covered by test_a04_percent_conversion,
+  test_a04_invalid_percent and test_defaults. Runtime JSON Schema validation uses
+  jsonschema (added dependency, required by this card).
+- Acceptance mapping in tests/py/test_input.py: example → test_example_matches_core_fixture;
+  invalid STEP → test_bad_step_names_problem; config errors → test_config_errors_name_key;
+  shell boundary → manual source audit plus test_no_geometry_decisions_in_shell.
+  test_supported_curves_chord_error checks dense reference samples against output
+  segments for all five supported profiles. test_polyline_input_is_preserved covers
+  direct polyline input.
+- Parent make dev-check: runs/logs/S2-verified-1001.log, exit 0; Rust fmt/clippy/tests,
+  ruff and all 36 Python cases pass.
+- Installed missing libgl1/libglu1-mesa into Vorona-dev and added them to
+  Dockerfile.dev so build123d imports on clean builds. No other containers touched.
+- S2 remains unmerged pending Jerry's review.
