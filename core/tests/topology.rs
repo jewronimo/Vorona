@@ -15,6 +15,10 @@ fn input(name: &str) -> CoreInput {
     )
     .unwrap();
     i.params.target_size = 6.0;
+    // These curved-profile cases exercise C3 defects, not the C2 dip gate.
+    if name != "cylinder" {
+        i.params.surface_tolerance = 2.0;
+    }
     i
 }
 fn surface(i: &CoreInput) -> Surface {

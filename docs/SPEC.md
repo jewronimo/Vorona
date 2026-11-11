@@ -72,6 +72,11 @@ Keep them as config values, never hard-coded.
 - **R-VA-5** bevels ≤ cap
 - **R-VA-6** faces planar; every shared joint face identical on both pieces
 - **R-VA-7** corners on surface; face depth inside surface ≤ `surface_tolerance`
+  (default 0.75 in; adjustable per run to tune the desired look). C2 selects
+  column counts satisfying centre dip `r·(1 − cos(π/n)) ≤ surface_tolerance`;
+  if no allowed count satisfies it, the run is infeasible. Feasibility reports
+  candidate piece widths and dips: for the reference cylinder, 8 columns give
+  approximately 7.1 in pieces and 0.69 in dip; 10 give 5.7 in and 0.44 in.
 - **R-VA-8** no overlaps, no gaps (topology closed; every interior edge has exactly two pieces)
 - **R-VA-9** report totals: piece count by side count, blanks used, where 5/7-sided pieces were forced
 

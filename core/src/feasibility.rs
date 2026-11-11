@@ -3,7 +3,7 @@ use crate::{
     model::{Feasibility, Params},
     surface::Surface,
 };
-use std::f64::consts::TAU;
+use std::f64::consts::{PI, TAU};
 
 const STEP: f64 = 0.05;
 const NOISE: f64 = 1e-6;
@@ -47,7 +47,6 @@ pub fn check(surface: &Surface, params: &Params) -> Feasibility {
 
 fn estimate(surface: &Surface, p: &Params) -> Feasibility {
     let steps = (surface.length() / STEP).ceil() as usize;
-    let delta = p.size_variation;
     let min_radius = p.min_bounding_square * (180.0 / p.bevel_cap_deg).ceil() / TAU;
     let mut f = Feasibility {
         feasible: false,
@@ -68,10 +67,7 @@ fn estimate(surface: &Surface, p: &Params) -> Feasibility {
         let s = surface.length() * i as f64 / steps as f64;
         let r = surface.r(s);
         // Even wraps avoid a helical seam. Units below are pairs of columns.
-        let low = (TAU * r / (p.target_size * (1.0 + delta)) / 2.0 - 1e-12)
-            .ceil()
-            .max(1.0) as u32;
-        let high = (TAU * r / (p.target_size * (1.0 - delta)) / 2.0 + 1e-12).floor() as u32;
+        let (low, high) = column_interval(r, p);
         possible &= low <= high;
         intervals.push((low, high.max(low)));
         if i == 0 {
@@ -119,7 +115,12 @@ fn estimate(surface: &Surface, p: &Params) -> Feasibility {
         .windows(2)
         .map(|pair| pair[0].abs_diff(pair[1]))
         .sum();
-    f.columns = sequence;
+    // Do not report a fictitious sequence if any local interval is empty.
+    if possible {
+        f.columns = sequence;
+    } else {
+        f.column_changes = 0;
+    }
     let lower = p.allowed_sides.iter().copied().min().unwrap_or(9) as f64;
     let upper = p.allowed_sides.iter().copied().max().unwrap_or(4) as f64;
     let average =
@@ -138,6 +139,57 @@ fn estimate(surface: &Surface, p: &Params) -> Feasibility {
     f
 }
 
+// Counts are represented in pairs, preserving the existing even-wrap convention.
+fn size_interval(r: f64, p: &Params) -> (u32, u32) {
+    let low = (TAU * r / (p.target_size * (1.0 + p.size_variation)) / 2.0 - 1e-12)
+        .ceil()
+        .max(1.0) as u32;
+    let high = (TAU * r / (p.target_size * (1.0 - p.size_variation)) / 2.0 + 1e-12).floor() as u32;
+    (low, high)
+}
+
+fn column_interval(r: f64, p: &Params) -> (u32, u32) {
+    let (mut low, high) = size_interval(r, p);
+    let fits =
+        |pairs: u32| r * (1.0 - (PI / (2.0 * f64::from(pairs))).cos()) <= p.surface_tolerance;
+    if low > high {
+        return (low, high);
+    }
+    if !fits(high) {
+        return (high.saturating_add(1), high);
+    }
+    // Monotone dip in n; integer bisection avoids acos threshold rounding and
+    // tests the exact required inequality, inclusively, with no tolerance slack.
+    let mut upper = high;
+    while low < upper {
+        let mid = low + (upper - low) / 2;
+        if fits(mid) {
+            upper = mid;
+        } else {
+            low = mid + 1;
+        }
+    }
+    (low, high)
+}
+
+fn dip_blocked_ranges(surface: &Surface, p: &Params) -> Vec<[f64; 2]> {
+    let steps = (surface.length() / STEP).ceil() as usize;
+    let mut ranges = Vec::new();
+    for i in 0..=steps {
+        let s = surface.length() * i as f64 / steps as f64;
+        let (low, high) = size_interval(surface.r(s), p);
+        let (dip_low, _) = column_interval(surface.r(s), p);
+        if low <= high && dip_low > high {
+            let prev = surface.length() * i.saturating_sub(1) as f64 / steps as f64;
+            append_range(
+                &mut ranges,
+                [surface.point(0.0, prev)[1], surface.point(0.0, s)[1]],
+            );
+        }
+    }
+    ranges
+}
+
 fn append_range(ranges: &mut Vec<[f64; 2]>, range: [f64; 2]) {
     let range = [range[0].min(range[1]), range[0].max(range[1])];
     if let Some(last) = ranges.last_mut() {
@@ -152,7 +204,10 @@ fn append_range(ranges: &mut Vec<[f64; 2]>, range: [f64; 2]) {
 /// Plain-language inch-valued feasibility summary; does not change the selected side set.
 pub fn message(surface: &Surface, f: &Feasibility, p: &Params) -> String {
     if f.feasible {
-        return "The allowed side set is feasible for this profile and size range.".into();
+        return format!(
+            "The allowed side set is feasible for this profile and size range.{}",
+            column_candidates(surface, p)
+        );
     }
     let label = if p.allowed_sides.len() == 1 {
         format!("{} only", p.allowed_sides[0])
@@ -160,6 +215,13 @@ pub fn message(surface: &Surface, f: &Feasibility, p: &Params) -> String {
         format_set(&p.allowed_sides)
     };
     let mut reasons = Vec::new();
+    let dip_ranges = dip_blocked_ranges(surface, p);
+    if !dip_ranges.is_empty() {
+        reasons.push(format!(
+            "no even column count satisfies r*(1-cos(pi/n)) <= surface_tolerance ({} in) within the requested size range at heights {} in",
+            p.surface_tolerance, format_ranges(&dip_ranges)
+        ));
+    }
     if !p.allow_waists && !f.waist_ranges.is_empty() {
         reasons.push(format!(
             "this profile has a waist at heights {} in",
@@ -225,7 +287,36 @@ pub fn message(surface: &Surface, f: &Feasibility, p: &Params) -> String {
                 .join(" or ")
         ));
     }
+    text.push_str(&column_candidates(surface, p));
     text
+}
+
+// Local size-range alternatives, not promises of whole-profile feasibility or C4 depth.
+fn column_candidates(surface: &Surface, p: &Params) -> String {
+    let r = surface.r(0.0);
+    let (low, high) = size_interval(r, p);
+    let mut entries = Vec::new();
+    for pairs in low..=high.min(low.saturating_add(15)) {
+        let n = 2 * pairs;
+        let dip = r * (1.0 - (PI / f64::from(n)).cos());
+        entries.push(format!(
+            "{n} columns: ~{:.1} in piece width, {:.2} in dip ({})",
+            TAU * r / f64::from(n),
+            dip,
+            if dip <= p.surface_tolerance {
+                "within tolerance"
+            } else {
+                "exceeds tolerance"
+            }
+        ));
+    }
+    if entries.is_empty() {
+        return String::new();
+    }
+    if high.saturating_sub(low) >= 16 {
+        entries.push("further counts omitted".into());
+    }
+    format!(" At height {:.2} in, size-range candidates (width = circumference/n; dip = r*(1-cos(pi/n))): {}. These local estimates do not certify optimized face depth.", surface.point(0.0, 0.0)[1], entries.join("; "))
 }
 fn format_set(set: &[u32]) -> String {
     format!(

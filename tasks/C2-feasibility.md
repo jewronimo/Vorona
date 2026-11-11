@@ -95,3 +95,63 @@ Before any tiling, decide whether the allowed side set can work, explain why not
   contract/schema range test reported `ok`. Rust fmt/clippy and Python ruff/pytest passed.
 - Request001 is resolved by A04; earlier pending/deferred notes are historical.
 - No Python files modified; Python percent conversion remains separate.
+
+### Surface-dip implementation handoff (2026-11-10, unverified)
+- Isolated branch `task/C2-surface-dip` from main, worktree `runs/worktrees/C2-dip`.
+  C4 worktree, main checkout's dirty S3 files, and S3 artifacts untouched.
+- Each existing even-column/size-variation interval is intersected with
+  `r*(1-cos(pi/n)) <= surface_tolerance`. Deterministic integer bisection tests
+  the inclusive inequality directly; existing minimum-change projection and
+  low-count ties are retained. Reference cylinder selects 10 instead of 8.
+- Empty intervals make feasibility false and leave columns empty (no fictitious
+  usable sequence). Existing output message reports the dip inequality, tolerance
+  in inches and sampled blocked heights; no schema/contract/Python changes.
+  Height ranges retain the estimator's <=0.05-inch arc sampling resolution.
+- A04 suggestions and first-working 5%-grid variation use the same constrained
+  estimator, so no side-set suggestion bypasses dip and variation advice remains
+  the smallest working rounded grid value. This is a C2 screening constraint,
+  not proof that optimized C4 faces satisfy their measured face-depth limit.
+- Added tests: `reference_cylinder_dip_selects_ten` (actual frozen input),
+  `dip_boundary_is_inclusive_and_respects_even_counts` (equal/above/below),
+  `no_dip_compatible_count_reports_limit_without_side_suggestions` (message,
+  both generation gates, no misleading suggestions/advice), and
+  `dip_variation_advice_uses_first_working_grid_point` (10% fails,15% works).
+  Legacy C2 defect/variation tests and C3 curved-profile topology tests explicitly
+  use a loose 2-inch dip tolerance to
+  preserve their isolated analytic thresholds and message snapshots; actual
+  reference parameters are independently tested without overrides.
+- NO tests, checks or diagnostic programs executed per task instruction; parent
+  must run official dev-check. No commit, merge, push, rebase, or new dependency.
+- After parent verifies C2: preserve C4 dirty changes as a local reviewable commit
+  or stash, commit approved C2, rebase task/C4-planes onto task/C2-surface-dip,
+  restore preserved changes, then investigate tile10's measured 1.97-inch face
+  depth against ~0.69-inch geometric expectation. Trace polygon/plane geometry,
+  centroid and midpoint probes, signed-distance calculation, and exported units/
+  piece identity; do not treat this discrepancy as explained by cylinder sagitta.
+- Container `cargo fmt` completed; this is formatting only, not verification.
+
+### Revised surface-dip handoff (2026-11-10, unverified)
+- Rebased `task/C2-surface-dip` onto main `59aecb1`; prior dip commit is now
+  `379d848`. Owner revised default to 0.75 inches; parent owns config/example/docs
+  defaults concurrently. No parent-owned files changed here.
+- Inclusive per-run sagitta inequality and empty-interval infeasibility are
+  unchanged. Reference cylinder regression now independently checks tolerance
+  0.75 selects 8 columns and 0.50 selects 10 columns; no other acceptance relaxed.
+- Feasibility messages now include local size-range candidate even counts at the
+  bottom profile height, circumference/n piece width, sagitta dip and explicit
+  within/exceeds-tolerance labels. Reference: 8 -> ~7.1 in / 0.69 in dip;
+  10 -> ~5.7 in / 0.44 in dip. At most 16 candidates are listed with an explicit
+  omission marker for longer intervals. Local estimates do not certify C4 depth.
+- Updated exact-message snapshots and reference diagnostics assertions; retained
+  no-compatible-count, inclusive-boundary and variation-grid regressions.
+- Loaded vorona-rust-container skill; `cargo fmt` only in Vorona-dev. NO checks,
+  tests, diagnostic binaries or certification run. Parent must verify.
+- C4 and its dirty files untouched; no merges or pushes. Historical 1.97-inch
+  C4 value above was global, not established as tile10. Latest parent evidence:
+  release max 1.1548 on tile58 versus tile10 0.0971 after ordering fix.
+
+### Parent revised-default verification — 2026-11-10
+- Default/example/interface and reference input fixture now use 0.75 in; per-run override remains supported.
+- Official container check passed: `runs/logs/C2-owner-recheck-1916.log` (fmt/clippy, all Rust tests, ruff and 39 Python tests).
+- Initial `runs/logs/C2-owner-1915.log` exposed the stale 0.5-in reference fixture; synchronized it to the approved example and reran the complete check.
+- Reference regression verifies 0.75 -> 8 columns and 0.50 -> 10, inclusive dip bound and infeasibility; candidate messages report widths and dips.
