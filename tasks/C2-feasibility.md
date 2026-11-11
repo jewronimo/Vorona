@@ -129,3 +129,23 @@ Before any tiling, decide whether the allowed side set can work, explain why not
   centroid and midpoint probes, signed-distance calculation, and exported units/
   piece identity; do not treat this discrepancy as explained by cylinder sagitta.
 - Container `cargo fmt` completed; this is formatting only, not verification.
+
+### Revised surface-dip handoff (2026-11-10, unverified)
+- Rebased `task/C2-surface-dip` onto main `59aecb1`; prior dip commit is now
+  `379d848`. Owner revised default to 0.75 inches; parent owns config/example/docs
+  defaults concurrently. No parent-owned files changed here.
+- Inclusive per-run sagitta inequality and empty-interval infeasibility are
+  unchanged. Reference cylinder regression now independently checks tolerance
+  0.75 selects 8 columns and 0.50 selects 10 columns; no other acceptance relaxed.
+- Feasibility messages now include local size-range candidate even counts at the
+  bottom profile height, circumference/n piece width, sagitta dip and explicit
+  within/exceeds-tolerance labels. Reference: 8 -> ~7.1 in / 0.69 in dip;
+  10 -> ~5.7 in / 0.44 in dip. At most 16 candidates are listed with an explicit
+  omission marker for longer intervals. Local estimates do not certify C4 depth.
+- Updated exact-message snapshots and reference diagnostics assertions; retained
+  no-compatible-count, inclusive-boundary and variation-grid regressions.
+- Loaded vorona-rust-container skill; `cargo fmt` only in Vorona-dev. NO checks,
+  tests, diagnostic binaries or certification run. Parent must verify.
+- C4 and its dirty files untouched; no merges or pushes. Historical 1.97-inch
+  C4 value above was global, not established as tile10. Latest parent evidence:
+  release max 1.1548 on tile58 versus tile10 0.0971 after ordering fix.

@@ -204,7 +204,10 @@ fn append_range(ranges: &mut Vec<[f64; 2]>, range: [f64; 2]) {
 /// Plain-language inch-valued feasibility summary; does not change the selected side set.
 pub fn message(surface: &Surface, f: &Feasibility, p: &Params) -> String {
     if f.feasible {
-        return "The allowed side set is feasible for this profile and size range.".into();
+        return format!(
+            "The allowed side set is feasible for this profile and size range.{}",
+            column_candidates(surface, p)
+        );
     }
     let label = if p.allowed_sides.len() == 1 {
         format!("{} only", p.allowed_sides[0])
@@ -284,7 +287,36 @@ pub fn message(surface: &Surface, f: &Feasibility, p: &Params) -> String {
                 .join(" or ")
         ));
     }
+    text.push_str(&column_candidates(surface, p));
     text
+}
+
+// Local size-range alternatives, not promises of whole-profile feasibility or C4 depth.
+fn column_candidates(surface: &Surface, p: &Params) -> String {
+    let r = surface.r(0.0);
+    let (low, high) = size_interval(r, p);
+    let mut entries = Vec::new();
+    for pairs in low..=high.min(low.saturating_add(15)) {
+        let n = 2 * pairs;
+        let dip = r * (1.0 - (PI / f64::from(n)).cos());
+        entries.push(format!(
+            "{n} columns: ~{:.1} in piece width, {:.2} in dip ({})",
+            TAU * r / f64::from(n),
+            dip,
+            if dip <= p.surface_tolerance {
+                "within tolerance"
+            } else {
+                "exceeds tolerance"
+            }
+        ));
+    }
+    if entries.is_empty() {
+        return String::new();
+    }
+    if high.saturating_sub(low) >= 16 {
+        entries.push("further counts omitted".into());
+    }
+    format!(" At height {:.2} in, size-range candidates (width = circumference/n; dip = r*(1-cos(pi/n))): {}. These local estimates do not certify optimized face depth.", surface.point(0.0, 0.0)[1], entries.join("; "))
 }
 fn format_set(set: &[u32]) -> String {
     format!(

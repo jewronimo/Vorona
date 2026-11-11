@@ -103,18 +103,18 @@ fn exact_message_snapshots() {
     let i = input("cylinder");
     assert_eq!(
         message(&check(&i), &i.params),
-        "The allowed side set is feasible for this profile and size range."
+        "The allowed side set is feasible for this profile and size range. At height 0.00 in, size-range candidates (width = circumference/n; dip = r*(1-cos(pi/n))): 10 columns: ~5.7 in piece width, 0.44 in dip (within tolerance). These local estimates do not certify optimized face depth."
     );
     let mut f = check(&i);
     f.feasible = false;
     f.pentagons_needed = 9;
     f.suggestions = vec![vec![5, 6], vec![5, 6, 7]];
-    assert_eq!(message(&f,&i.params), "6 only is not possible at ±15 %: this profile bulges, so it needs about 9 five-sided pieces. With size variation of at least ±20 %, [6] works. Try [5,6] or [5,6,7].");
+    assert_eq!(message(&f,&i.params), "6 only is not possible at ±15 %: this profile bulges, so it needs about 9 five-sided pieces. With size variation of at least ±20 %, [6] works. Try [5,6] or [5,6,7]. At height 0.00 in, size-range candidates (width = circumference/n; dip = r*(1-cos(pi/n))): 10 columns: ~5.7 in piece width, 0.44 in dip (within tolerance). These local estimates do not certify optimized face depth.");
     let mut i = i;
     i.params.allowed_sides = vec![5];
     let mut f = check(&i);
     f.suggestions = vec![vec![5, 6]];
-    assert_eq!(message(&f,&i.params), "5 only is not possible at ±15 %: the allowed side counts cannot balance the required average or fit an even column wrap. Try [5,6].");
+    assert_eq!(message(&f,&i.params), "5 only is not possible at ±15 %: the allowed side counts cannot balance the required average or fit an even column wrap. Try [5,6]. At height 0.00 in, size-range candidates (width = circumference/n; dip = r*(1-cos(pi/n))): 10 columns: ~5.7 in piece width, 0.44 in dip (within tolerance). These local estimates do not certify optimized face depth.");
 }
 #[test]
 fn generation_gate_cli_and_determinism() {
@@ -166,7 +166,7 @@ fn cone_numeric_variation_message_snapshot() {
     let surface = Surface::from_profile(&i.surface.profile).unwrap();
     let f = check(&i);
     assert_eq!(feasibility::message(&surface, &f, &i.params),
-        "6 only is not possible at ±15 %: the circumference changes, so it needs about 4 five-and-seven-sided pairs. With size variation of at least ±25 %, [6] works. Try [5,6,7] or [4,6,7] or [5,6,8] or [4,6,8].");
+        "6 only is not possible at ±15 %: the circumference changes, so it needs about 4 five-and-seven-sided pairs. With size variation of at least ±25 %, [6] works. Try [5,6,7] or [4,6,7] or [5,6,8] or [4,6,8]. At height 0.00 in, size-range candidates (width = circumference/n; dip = r*(1-cos(pi/n))): 10 columns: ~5.7 in piece width, 0.44 in dip (within tolerance). These local estimates do not certify optimized face depth.");
     i.params.size_variation = 20.0 / 100.0;
     assert!(!check(&i).feasible);
     i.params.size_variation = 25.0 / 100.0;
@@ -181,14 +181,26 @@ fn cone_numeric_variation_message_snapshot() {
 }
 
 #[test]
-fn reference_cylinder_dip_selects_ten() {
-    let i: CoreInput = serde_json::from_str(include_str!(
+fn reference_cylinder_dip_selects_eight_or_ten_per_run() {
+    let mut i: CoreInput = serde_json::from_str(include_str!(
         "../../tests/fixtures/core_input_cylinder.json"
     ))
     .unwrap();
-    let f = check(&i);
-    assert!(f.feasible);
-    assert_eq!(f.columns, [10]);
+    for (tolerance, columns) in [(0.75, 8), (0.5, 10)] {
+        i.params.surface_tolerance = tolerance;
+        let f = check(&i);
+        assert!(f.feasible);
+        assert_eq!(f.columns, [columns]);
+        let msg = message(&f, &i.params);
+        assert!(msg.contains("8 columns: ~7.1 in piece width, 0.69 in dip"));
+        assert!(msg.contains("10 columns: ~5.7 in piece width, 0.44 in dip (within tolerance)"));
+        assert!(msg.contains(if tolerance == 0.75 {
+            "0.69 in dip (within tolerance)"
+        } else {
+            "0.69 in dip (exceeds tolerance)"
+        }));
+    }
+    i.params.surface_tolerance = 0.5;
     assert!(9.0 * (1.0 - (std::f64::consts::PI / 8.0).cos()) > i.params.surface_tolerance);
     assert!(9.0 * (1.0 - (std::f64::consts::PI / 10.0).cos()) <= i.params.surface_tolerance);
 }
