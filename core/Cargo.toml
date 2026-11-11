@@ -20,8 +20,19 @@ serde_json = { version = "1", features = ["float_roundtrip"] }
 sha2 = "0.10"
 pyo3 = { version = "0.27", optional = true, features = ["extension-module", "abi3-py311"] }
 
+rand = "0.8"
+rand_chacha = "0.3"
+spade = "2"
+
 [dev-dependencies]
 jsonschema = "0.33"
 
 [build-dependencies]
 pyo3-build-config = { version = "0.27", optional = true }
+
+# Geometry repair is CPU-bound; unoptimized test builds obscure convergence.
+[profile.dev]
+opt-level = 2
+
+[profile.test]
+opt-level = 2

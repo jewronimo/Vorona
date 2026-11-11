@@ -3,8 +3,11 @@ pub mod feasibility;
 pub mod model;
 #[cfg(feature = "python")]
 mod py;
+pub mod seeds;
+pub mod sidecount;
 pub mod surface;
 pub mod tol;
+pub mod topology;
 use model::*;
 use sha2::{Digest, Sha256};
 
