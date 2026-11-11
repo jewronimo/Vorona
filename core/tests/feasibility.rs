@@ -14,6 +14,8 @@ fn input(name: &str) -> CoreInput {
     )
     .unwrap();
     input.params.target_size = 6.0;
+    // Legacy defect/variation tests isolate those constraints from the dip gate.
+    input.params.surface_tolerance = 2.0;
     input
 }
 fn check(input: &CoreInput) -> vstone_core::model::Feasibility {
@@ -176,4 +178,62 @@ fn cone_numeric_variation_message_snapshot() {
     assert!(!check(&i).feasible);
     i.params.size_variation = threshold + 1e-8;
     assert!(check(&i).feasible);
+}
+
+#[test]
+fn reference_cylinder_dip_selects_ten() {
+    let i: CoreInput = serde_json::from_str(include_str!(
+        "../../tests/fixtures/core_input_cylinder.json"
+    ))
+    .unwrap();
+    let f = check(&i);
+    assert!(f.feasible);
+    assert_eq!(f.columns, [10]);
+    assert!(9.0 * (1.0 - (std::f64::consts::PI / 8.0).cos()) > i.params.surface_tolerance);
+    assert!(9.0 * (1.0 - (std::f64::consts::PI / 10.0).cos()) <= i.params.surface_tolerance);
+}
+
+#[test]
+fn dip_boundary_is_inclusive_and_respects_even_counts() {
+    let mut i = input("cylinder");
+    i.params.size_variation = 0.4;
+    let boundary = 9.0 * (1.0 - (std::f64::consts::PI / 10.0).cos());
+    i.params.surface_tolerance = boundary;
+    assert_eq!(check(&i).columns, [10]);
+    i.params.surface_tolerance = boundary - 1e-10;
+    assert_eq!(check(&i).columns, [12]);
+    i.params.surface_tolerance = boundary + 1e-10;
+    assert_eq!(check(&i).columns, [10]);
+}
+
+#[test]
+fn no_dip_compatible_count_reports_limit_without_side_suggestions() {
+    let mut i = input("cylinder");
+    i.params.surface_tolerance = 0.1;
+    let f = check(&i);
+    assert!(!f.feasible);
+    assert!(f.columns.is_empty());
+    assert!(f.suggestions.is_empty());
+    let msg = message(&f, &i.params);
+    assert!(msg
+        .contains("no even column count satisfies r*(1-cos(pi/n)) <= surface_tolerance (0.1 in)"));
+    assert!(msg.contains("heights 0.00–60.00 in"));
+    assert!(!msg.contains("works."));
+    assert_eq!(vstone_core::feasibility_only(&i).status, "infeasible");
+    assert_eq!(vstone_core::generate(&i).status, "infeasible");
+}
+
+#[test]
+fn dip_variation_advice_uses_first_working_grid_point() {
+    let mut i = input("cylinder");
+    i.params.target_size = 6.5;
+    i.params.size_variation = 0.05;
+    i.params.surface_tolerance = 0.5;
+    let f = check(&i);
+    assert!(!f.feasible);
+    assert!(message(&f, &i.params).contains("With size variation of at least ±15 %, [6] works."));
+    i.params.size_variation = 0.10;
+    assert!(!check(&i).feasible);
+    i.params.size_variation = 0.15;
+    assert_eq!(check(&i).columns, [10]);
 }

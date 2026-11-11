@@ -95,3 +95,37 @@ Before any tiling, decide whether the allowed side set can work, explain why not
   contract/schema range test reported `ok`. Rust fmt/clippy and Python ruff/pytest passed.
 - Request001 is resolved by A04; earlier pending/deferred notes are historical.
 - No Python files modified; Python percent conversion remains separate.
+
+### Surface-dip implementation handoff (2026-11-10, unverified)
+- Isolated branch `task/C2-surface-dip` from main, worktree `runs/worktrees/C2-dip`.
+  C4 worktree, main checkout's dirty S3 files, and S3 artifacts untouched.
+- Each existing even-column/size-variation interval is intersected with
+  `r*(1-cos(pi/n)) <= surface_tolerance`. Deterministic integer bisection tests
+  the inclusive inequality directly; existing minimum-change projection and
+  low-count ties are retained. Reference cylinder selects 10 instead of 8.
+- Empty intervals make feasibility false and leave columns empty (no fictitious
+  usable sequence). Existing output message reports the dip inequality, tolerance
+  in inches and sampled blocked heights; no schema/contract/Python changes.
+  Height ranges retain the estimator's <=0.05-inch arc sampling resolution.
+- A04 suggestions and first-working 5%-grid variation use the same constrained
+  estimator, so no side-set suggestion bypasses dip and variation advice remains
+  the smallest working rounded grid value. This is a C2 screening constraint,
+  not proof that optimized C4 faces satisfy their measured face-depth limit.
+- Added tests: `reference_cylinder_dip_selects_ten` (actual frozen input),
+  `dip_boundary_is_inclusive_and_respects_even_counts` (equal/above/below),
+  `no_dip_compatible_count_reports_limit_without_side_suggestions` (message,
+  both generation gates, no misleading suggestions/advice), and
+  `dip_variation_advice_uses_first_working_grid_point` (10% fails,15% works).
+  Legacy C2 defect/variation tests and C3 curved-profile topology tests explicitly
+  use a loose 2-inch dip tolerance to
+  preserve their isolated analytic thresholds and message snapshots; actual
+  reference parameters are independently tested without overrides.
+- NO tests, checks or diagnostic programs executed per task instruction; parent
+  must run official dev-check. No commit, merge, push, rebase, or new dependency.
+- After parent verifies C2: preserve C4 dirty changes as a local reviewable commit
+  or stash, commit approved C2, rebase task/C4-planes onto task/C2-surface-dip,
+  restore preserved changes, then investigate tile10's measured 1.97-inch face
+  depth against ~0.69-inch geometric expectation. Trace polygon/plane geometry,
+  centroid and midpoint probes, signed-distance calculation, and exported units/
+  piece identity; do not treat this discrepancy as explained by cylinder sagitta.
+- Container `cargo fmt` completed; this is formatting only, not verification.
