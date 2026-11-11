@@ -149,3 +149,9 @@ Before any tiling, decide whether the allowed side set can work, explain why not
 - C4 and its dirty files untouched; no merges or pushes. Historical 1.97-inch
   C4 value above was global, not established as tile10. Latest parent evidence:
   release max 1.1548 on tile58 versus tile10 0.0971 after ordering fix.
+
+### Parent revised-default verification — 2026-11-10
+- Default/example/interface and reference input fixture now use 0.75 in; per-run override remains supported.
+- Official container check passed: `runs/logs/C2-owner-recheck-1916.log` (fmt/clippy, all Rust tests, ruff and 39 Python tests).
+- Initial `runs/logs/C2-owner-1915.log` exposed the stale 0.5-in reference fixture; synchronized it to the approved example and reran the complete check.
+- Reference regression verifies 0.75 -> 8 columns and 0.50 -> 10, inclusive dip bound and infeasibility; candidate messages report widths and dips.

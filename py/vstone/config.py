@@ -134,7 +134,7 @@ def _load_config(path: str) -> RunConfig:
             "max_edge": 6.0,
             "min_corner_angle_deg": 70.0,
             "bevel_cap_deg": 60.0,
-            "surface_tolerance": 0.5,
+            "surface_tolerance": 0.75,
             "min_bounding_square": 4.0,
             "allow_waists": False,
         },

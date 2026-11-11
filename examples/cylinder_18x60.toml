@@ -26,7 +26,7 @@ min_edge = 1.0                        # (open)
 max_edge = 6.0                        # (open)
 min_corner_angle_deg = 70.0           # (open)
 bevel_cap_deg = 60.0
-surface_tolerance = 0.5               # max face depth inside the true surface (open)
+surface_tolerance = 0.75              # inches; tune per run for the desired face depth
 min_bounding_square = 4.0             # (open: "bounding square >= 4")
 allow_waists = false
 
