@@ -202,6 +202,35 @@ impl Surface {
         let len = t * (self.arcs[i + 1] - self.arcs[i]);
         self.conformal[i] + conformal_integral(self.points[i][0], self.profile(s)[0], len)
     }
+    /// Signed conformal separation (dimensionless) between arc positions in inches.
+    /// Integrates the same polyline chart locally, avoiding cancellation of two
+    /// large absolute v coordinates. Outside the profile, extends endpoint radii.
+    /// Finite arc positions cannot fail.
+    pub fn conformal_delta(&self, a: f64, b: f64) -> f64 {
+        if b < a {
+            return -self.conformal_delta(b, a);
+        }
+        let lo = a.clamp(0., self.length());
+        let hi = b.clamp(0., self.length());
+        let mut result = (hi - b).abs() / self.r(self.length()) + (lo - a).abs() / self.r(0.);
+        // Both endpoints outside the same end need only their actual separation.
+        if b <= 0. {
+            return (b - a) / self.r(0.);
+        }
+        if a >= self.length() {
+            return (b - a) / self.r(self.length());
+        }
+        let (i, _) = self.interval(lo);
+        let (j, _) = self.interval(hi);
+        if i == j {
+            result += conformal_integral(self.r(lo), self.r(hi), hi - lo);
+        } else {
+            result += conformal_integral(self.r(lo), self.points[i + 1][0], self.arcs[i + 1] - lo);
+            result += self.conformal[j] - self.conformal[i + 1];
+            result += conformal_integral(self.points[j][0], self.r(hi), hi - self.arcs[j]);
+        }
+        result
+    }
     /// Arc length in inches from dimensionless v, clamped to the open profile.
     pub fn s_of_v(&self, v: f64) -> f64 {
         let (i, t) = interval(&self.conformal, v);
@@ -349,25 +378,12 @@ fn intersects(a: [f64; 2], b: [f64; 2], c: [f64; 2], d: [f64; 2]) -> bool {
         || (o4 == 0 && on(c, d, b))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn resampling_preserves_vertices_and_bounds_step() {
-        let surface = Surface::from_profile(&[[9., 0.], [8., 0.123], [8., 1.234]]).unwrap();
-        assert!(surface.points.contains(&[8., 0.123]));
-        assert!(surface
-            .arcs
-            .windows(2)
-            .all(|w| w[1] - w[0] <= MAX_STEP + 1e-12));
-        for i in 0..surface.points.len() {
-            assert_eq!(surface.profile(surface.arcs[i]), surface.points[i]);
-        }
-    }
-}
-
 impl crate::planes::SurfaceQueries for Surface {
+    fn inside_rims(&self, point: [f64; 3]) -> bool {
+        point[1].is_finite()
+            && point[1] >= self.heights[0] - GEOM_EPS
+            && point[1] <= self.heights[1] + GEOM_EPS
+    }
     fn frame(&self, uv: [f64; 2]) -> ([f64; 3], [f64; 3]) {
         // Endpoint continuation belongs to this surface adapter, not the solver.
         let end = self.v_of_s(self.length());
@@ -388,5 +404,23 @@ impl crate::planes::SurfaceQueries for Surface {
     }
     fn distance(&self, p: [f64; 3]) -> f64 {
         self.signed_distance(p)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resampling_preserves_vertices_and_bounds_step() {
+        let surface = Surface::from_profile(&[[9., 0.], [8., 0.123], [8., 1.234]]).unwrap();
+        assert!(surface.points.contains(&[8., 0.123]));
+        assert!(surface
+            .arcs
+            .windows(2)
+            .all(|w| w[1] - w[0] <= MAX_STEP + 1e-12));
+        for i in 0..surface.points.len() {
+            assert_eq!(surface.profile(surface.arcs[i]), surface.points[i]);
+        }
     }
 }

@@ -114,13 +114,13 @@
         "depth": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "default": 2.0
+          "default": 1.5
         },
         "max_corner_angle_deg": {
           "type": "number",
           "exclusiveMinimum": 180,
           "exclusiveMaximum": 270,
-          "default": 225
+          "default": 230
         }
       },
       "required": [

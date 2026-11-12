@@ -43,9 +43,22 @@ fn regular_cylinder_matches_c2_columns() {
     let s = surface(&i);
     let f = vstone_core::feasibility::check(&s, &i.params);
     let t = sidecount::build(&s, &i.params).unwrap();
-    for row in 0..=t.tiles.iter().map(|x| x.row).max().unwrap() {
-        let sites: Vec<_> = t.tiles.iter().filter(|x| x.row == row).collect();
-        assert_eq!(sites.len(), f.columns[0] as usize);
+    let circumference = std::f64::consts::TAU * s.r(0.);
+    let lo =
+        (circumference / (i.params.target_size * (1. + i.params.size_variation))).ceil() as usize;
+    let hi =
+        (circumference / (i.params.target_size * (1. - i.params.size_variation))).floor() as usize;
+    let nearest = (circumference / i.params.target_size).round() as usize;
+    let expected = nearest.clamp(lo, hi);
+    assert_eq!(f.columns, vec![expected as u32]);
+    // Exact lattice spacing describes placement, before bounded repair is
+    // allowed to move positions. Final repaired geometry is checked below
+    // against the independent physical spacing oracle, not frozen angles.
+    let initial = seeds::place(&s, &i.params, &mut seeds::rng(i.params.seed)).unwrap();
+    for row in 0..=initial.iter().map(|x| x.row).max().unwrap() {
+        let mut sites: Vec<_> = initial.iter().filter(|x| x.row == row).collect();
+        sites.sort_by(|a, b| a.u.total_cmp(&b.u));
+        assert_eq!(sites.len(), expected);
         for j in 0..sites.len() {
             let d = (sites[(j + 1) % sites.len()].u - sites[j].u).rem_euclid(std::f64::consts::TAU);
             assert!((d - std::f64::consts::TAU / sites.len() as f64).abs() < 1e-9);
@@ -56,6 +69,10 @@ fn regular_cylinder_matches_c2_columns() {
             assert_eq!(t.degree(j), 6);
         }
     }
+    for row in 0..=t.tiles.iter().map(|x| x.row).max().unwrap() {
+        assert_eq!(t.tiles.iter().filter(|x| x.row == row).count(), expected);
+    }
+    assert_spacing(&s, &i.params, &t);
     assert_manifold(&t);
 }
 #[test]
@@ -142,9 +159,8 @@ fn every_interior_edge_on_cylinder_cone_and_vase_is_in_band() {
     }
 }
 #[test]
-fn seeds_one_to_five_change_adjacency_not_just_positions() {
+fn seeds_one_to_five_change_positions_with_valid_geometry() {
     for randomness in [0.5, 1.0] {
-        let mut graphs = Vec::new();
         let mut positions = Vec::new();
         for seed in 1..=5 {
             let mut i = input("cylinder");
@@ -159,14 +175,81 @@ fn seeds_one_to_five_change_adjacency_not_just_positions() {
                 "seed {seed}: repeated positions"
             );
             positions.push(t.tiles.clone());
-            assert!(
-                randomness < 1.0 || !graphs.contains(&t.neighbors),
-                "seed {seed}, randomness {randomness}: repeated adjacency"
-            );
-            graphs.push(t.neighbors);
+            // Bounded positional jitter need not cross a Delaunay flip boundary.
+            // Graph uniqueness is not a position-only randomness requirement.
+            assert_manifold(&t);
         }
     }
 }
+#[test]
+fn initial_position_jitter_respects_local_component_caps_and_symmetric_depths() {
+    let mut i = input("cylinder");
+    i.params.allowed_sides = vec![5, 6, 7];
+    i.params.randomness = 0.;
+    let s = surface(&i);
+    let baseline = seeds::place(&s, &i.params, &mut seeds::rng(1)).unwrap();
+    let mut rows = BTreeMap::new();
+    for site in &baseline {
+        let entry = rows.entry(site.row).or_insert((site.s, 0usize));
+        entry.1 += 1;
+    }
+    for randomness in [0., 0.5, 1.] {
+        i.params.randomness = randomness;
+        for seed in 1..=5 {
+            let sites = seeds::place(&s, &i.params, &mut seeds::rng(seed)).unwrap();
+            assert_eq!(sites.len(), baseline.len());
+            for (site, base) in sites.iter().zip(&baseline) {
+                assert_eq!(site.row, base.row);
+                assert_eq!(site.auxiliary, base.auxiliary);
+                let depth = match site.row % 3 {
+                    0 => 0.,
+                    1 => i.params.depth / 2.,
+                    _ => i.params.depth,
+                };
+                assert_eq!(site.depth, depth);
+                let angular_pitch = std::f64::consts::TAU / rows[&base.row].1 as f64;
+                let row_pitch = if let Some(next) = rows.get(&(base.row + 1)) {
+                    next.0 - base.s
+                } else {
+                    base.s - rows[&(base.row - 1)].0
+                };
+                let du = (site.u - base.u + std::f64::consts::PI).rem_euclid(std::f64::consts::TAU)
+                    - std::f64::consts::PI;
+                assert!(du.abs() <= randomness * 0.1 * angular_pitch + 1e-12);
+                assert!((site.s - base.s).abs() <= randomness * 0.1 * row_pitch + 1e-12);
+                if base.auxiliary || base.s <= 0. || base.s >= s.length() {
+                    assert_eq!(site.s, base.s);
+                }
+            }
+            if randomness == 0. {
+                assert_eq!(sites, baseline);
+            } else {
+                assert_ne!(sites, baseline);
+            }
+        }
+    }
+}
+
+#[test]
+fn zero_randomness_repaired_topology_is_seed_independent() {
+    let mut i = input("cylinder");
+    i.params.randomness = 0.;
+    let s = surface(&i);
+    let mut baseline = None;
+    for seed in 1..=5 {
+        i.params.seed = seed;
+        let t = sidecount::build(&s, &i.params).unwrap();
+        assert_spacing(&s, &i.params, &t);
+        assert_manifold(&t);
+        let bytes = serde_json::to_vec(&t).unwrap();
+        if let Some(expected) = &baseline {
+            assert_eq!(&bytes, expected);
+        } else {
+            baseline = Some(bytes);
+        }
+    }
+}
+
 #[test]
 fn cone_and_vase_repair_reduce_nonzero_residual() {
     for name in ["cone_9_to_6", "vase_bulge"] {
@@ -286,6 +369,14 @@ fn cone_pairs_are_constructed_before_repair() {
     let mut sequence = rows.iter().map(|x| x.1 as u32).collect::<Vec<_>>();
     sequence.dedup();
     assert_eq!(sequence, f.columns);
+    // Odd counts and unit transitions are legal: independently verify every
+    // actual row's circumference width, rather than an obsolete even wrap.
+    for &(row, count) in &rows {
+        let site = t.tiles.iter().find(|s| s.row == row).unwrap();
+        let width = std::f64::consts::TAU * s.r(site.s) / count as f64;
+        assert!(width >= i.params.target_size * (1. - i.params.size_variation) - 1e-9);
+        assert!(width <= i.params.target_size * (1. + i.params.size_variation) + 1e-9);
+    }
     for pair in rows.windows(2).filter(|w| w[0].1 != w[1].1) {
         let row = pair[1].0;
         let needed = pair[0].1.abs_diff(pair[1].1);
@@ -429,4 +520,194 @@ fn a05_depth_bounds_determinism_and_depth_independent_topology() {
             }
         }
     }
+}
+
+/// Exact owner reference inputs: do not substitute the historical target 6.0.
+#[test]
+fn exact_reference_full_topology_matrix() {
+    let mut failures = Vec::new();
+    let mut attempted = 0;
+    for name in ["cylinder", "cone_9_to_6", "vase_bulge"] {
+        for randomness in [0., 0.5, 1.] {
+            for seed in 1..=10 {
+                let mut i = if name == "cylinder" {
+                    // Match c4_matrix's sampled reference profile exactly.
+                    serde_json::from_str(include_str!(
+                        "../../tests/fixtures/core_input_cylinder.json"
+                    ))
+                    .unwrap()
+                } else {
+                    input(name)
+                };
+                i.params.target_size = 6.5;
+                i.params.size_variation = 0.15;
+                i.params.depth = 1.5;
+                i.params.max_corner_angle_deg = 230.;
+                i.params.allowed_sides = if name == "cylinder" {
+                    vec![6]
+                } else {
+                    vec![5, 6, 7]
+                };
+                i.params.randomness = randomness;
+                i.params.seed = seed;
+                let s = surface(&i);
+                // Verify classification before repair, not just the final graph.
+                for site in seeds::place(&s, &i.params, &mut seeds::rng(seed)).unwrap() {
+                    assert_eq!(site.auxiliary, site.s < 0. || site.s > s.length());
+                }
+                attempted += 1;
+                let t = match sidecount::build(&s, &i.params) {
+                    Ok(t) => t,
+                    Err(e) => {
+                        failures.push(format!("{name} r={randomness} seed={seed}: {e}"));
+                        continue;
+                    }
+                };
+                assert_manifold(&t);
+                assert_spacing(&s, &i.params, &t);
+                for j in 0..t.tiles.len() {
+                    if sidecount::interior(&t, j, &s) {
+                        assert!(i.params.allowed_sides.contains(&(t.degree(j) as u32)));
+                    }
+                }
+                for above in [false, true] {
+                    let rows: std::collections::BTreeSet<_> = t
+                        .tiles
+                        .iter()
+                        .filter(|x| if above { x.s > s.length() } else { x.s < 0. })
+                        .map(|x| {
+                            assert!(x.auxiliary);
+                            x.row
+                        })
+                        .collect();
+                    assert!(rows.len() >= 2);
+                }
+                assert_eq!(t, sidecount::build(&s, &i.params).unwrap());
+            }
+        }
+    }
+    assert_eq!(attempted, 90);
+    assert!(
+        failures.is_empty(),
+        "90-case topology failures:\n{}",
+        failures.join("\n")
+    );
+}
+
+/// Reproduce the matrix's dense cylinder profile and complete reference params,
+/// not input("cylinder"), which substitutes a two-point profile and target 6.0.
+#[test]
+fn reference_cylinder_half_randomness_cleans_small_spacing_residuals() {
+    let base: CoreInput = serde_json::from_str(include_str!(
+        "../../tests/fixtures/core_input_cylinder.json"
+    ))
+    .unwrap();
+    for seed in 1..=10 {
+        let mut i = base.clone();
+        i.params.target_size = 6.5;
+        i.params.size_variation = 0.15;
+        i.params.depth = 1.5;
+        i.params.max_corner_angle_deg = 230.;
+        i.params.allowed_sides = vec![6];
+        i.params.randomness = 0.5;
+        i.params.seed = seed;
+        let s = surface(&i);
+        for perturb in [false, true] {
+            let mut rng = seeds::rng(seed);
+            let mut sites = seeds::place(&s, &i.params, &mut rng).unwrap();
+            if perturb {
+                // Exact nine-column pitch may already satisfy the band at .5.
+                // Preserve natural-input coverage AND force nonzero repair.
+                let j = sites
+                    .iter()
+                    .position(|x| {
+                        !x.auxiliary
+                            && x.s > i.params.target_size
+                            && x.s < s.length() - i.params.target_size
+                    })
+                    .unwrap();
+                sites[j].u = (sites[j].u + 0.35 * i.params.target_size / s.r(sites[j].s))
+                    .rem_euclid(std::f64::consts::TAU);
+            }
+            let (t, report) = sidecount::repair_with_report(&s, &i.params, sites, &mut rng)
+                .unwrap_or_else(|e| {
+                    panic!("matrix cylinder r=.5 seed={seed} perturb={perturb}: {e}")
+                });
+            assert!(report.final_residual <= report.initial_residual);
+            if perturb {
+                assert!(
+                    report.initial_residual > 1e-8,
+                    "must exercise nonzero repair"
+                );
+                assert!(report.final_residual < report.initial_residual);
+                assert!(report.accepted_steps > 0 && report.iterations > 0);
+            }
+            assert_manifold(&t);
+            assert_spacing(&s, &i.params, &t);
+            for j in 0..t.tiles.len() {
+                if sidecount::interior(&t, j, &s) {
+                    assert_eq!(t.degree(j), 6);
+                }
+            }
+        }
+    }
+}
+
+/// On a cylinder the exact chart-path distance is hypot(r*du, ds), even
+/// for nearly same-height sites far from the origin or across a sample knot.
+/// Absolute-v subtraction previously made such distances noisy by ~1e-7.
+#[test]
+fn near_horizontal_spacing_has_no_absolute_chart_cancellation() {
+    let i: CoreInput = serde_json::from_str(include_str!(
+        "../../tests/fixtures/core_input_cylinder.json"
+    ))
+    .unwrap();
+    let s = surface(&i);
+    for arc in [30., 49.999999999, 50., 50.000000001, 60., 61.] {
+        for delta in [0., 1e-12, 1e-10, 1e-8, 1e-6, 0.01] {
+            let a = seeds::Seed {
+                u: 0.3,
+                v: seeds::extended_v(&s, arc),
+                s: arc,
+                row: 0,
+                auxiliary: arc > s.length(),
+                depth: 0.,
+            };
+            let b = seeds::Seed {
+                u: 1.0,
+                v: seeds::extended_v(&s, arc + delta),
+                s: arc + delta,
+                ..a.clone()
+            };
+            let expected = (0.7 * s.r(arc)).hypot(b.s - a.s);
+            for (x, y) in [(&a, &b), (&b, &a)] {
+                assert!(
+                    (seeds::spacing(&s, x, y) - expected).abs() < 1e-12,
+                    "arc={arc} delta={delta}"
+                );
+            }
+        }
+    }
+}
+
+/// Owner lattice rule: odd columns and exact hex pitch, with two support rows per end.
+#[test]
+fn reference_lattice_has_nine_columns_without_row_stretching() {
+    let mut i = input("cylinder");
+    i.params.target_size = 6.5;
+    i.params.randomness = 0.;
+    let surf = surface(&i);
+    let sites = seeds::place(&surf, &i.params, &mut seeds::rng(1)).unwrap();
+    let mut rows = BTreeMap::<usize, Vec<&seeds::Seed>>::new();
+    for site in &sites {
+        rows.entry(site.row).or_default().push(site);
+    }
+    assert!(rows.values().all(|row| row.len() == 9));
+    let pitch = std::f64::consts::TAU * 9. / 9. * 3f64.sqrt() / 2.;
+    let ys: Vec<_> = rows.values().map(|row| row[0].s).collect();
+    for pair in ys.windows(2) {
+        assert!((pair[1] - pair[0] - pitch).abs() < 1e-9);
+    }
+    assert!(ys.iter().filter(|&&s| s < 0.).count() >= 2);
+    assert!(ys.iter().filter(|&&s| s > surf.length()).count() >= 2);
 }

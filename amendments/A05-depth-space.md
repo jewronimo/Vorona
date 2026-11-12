@@ -147,3 +147,37 @@ Record the best `OptReport` and what was tried in `## Agent notes`, then stop. J
 - Update `examples/cylinder_18x60.toml`, fixtures and tests.
 - Acceptance: example loads with depth 2.0 and thickness 0.375; `depth = 0`, `max_corner_angle_deg =
   170` and an unknown `surface_tolerance` key each raise `ConfigError` naming the key.
+
+## Owner follow-up — 2026-11-12 (authorized)
+
+Default depth is **1.5 inches**, superseding 2.0 above. All C4 acceptance
+limits and cylinder/organic seed matrix/cone/vase cases apply at depth 1.5.
+Depths 1.0 and 2.0 are report-only diagnostics, not acceptance. No other
+limit is relaxed. Reference prototype keeps its historical default unchanged.
+
+## Owner fitted-result decision — 2026-11-12
+
+The native fitted solution using the reference objective `[corner-target, .05*tilt]`
+is the C4 result. Polishing is optional and may accept only steps that reduce
+limit violations; a feasible fitted solution is returned byte-identically unchanged.
+It must never worsen the fitted result. Default `max_corner_angle_deg` is **230**
+(superseding 225); depth remains **1.5**. Evaluate every C4 limit, not selected
+whole-tile metrics. Symmetric cylinder acceptance and the organic 0.5/1 seeds
+1..10 plus cone/vase measurements are at depth 1.5; depths 1/2 report only.
+
+
+## Owner open-end / C4 measurement decision — 2026-11-12
+
+C3 places at least TWO extra auxiliary seed rows beyond EACH open end, for
+both rim styles. C4 fits ALL planes, including support planes. Every C4 limit
+and statistic applies ONLY to complete non-auxiliary tiles whose fitted polygon
+is wholly between the physical rim planes. C5 clips partials later. This
+supersedes earlier single-row support and auxiliary-inclusive report wording.
+
+## Owner position-only randomness decision — 2026-11-12
+
+Depth NEVER varies per point: all randomness values retain the repeating row
+pattern `0, depth/2, depth`. Randomness controls positions only; value 1 means
+independent bounded ±10% displacement components of LOCAL angular/row spacing.
+This supersedes the random-depth blend in §3. Larger diagnostic jitter caps are
+explicit harness inputs, not production defaults or relaxed size limits.
