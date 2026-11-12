@@ -343,6 +343,7 @@ fn conformal_path_spacing_integrates_surface_metric_exactly() {
             s: 3.0,
             row: 0,
             auxiliary: false,
+            depth: 0.0,
         };
         let mut b = seeds::Seed {
             u: 0.1,
@@ -350,11 +351,82 @@ fn conformal_path_spacing_integrates_surface_metric_exactly() {
             s: 17.0,
             row: 1,
             auxiliary: false,
+            depth: 0.0,
         };
         assert!((seeds::spacing(&s, &a, &b) - 14.0).abs() < 1e-10);
         b.u += 0.4;
         let dv = b.v - a.v;
         let expected = 14.0 * (1.0 + (0.4 / dv).powi(2)).sqrt();
         assert!((seeds::spacing(&s, &a, &b) - expected).abs() < 1e-10);
+    }
+}
+
+#[test]
+fn a05_symmetric_depths_differ_across_every_vertical_neighbor() {
+    let mut i = input("cylinder");
+    i.params.randomness = 0.0;
+    i.params.depth = 2.0;
+    i.params.rims.bottom = "level".into();
+    i.params.rims.top = "level".into();
+    let s = surface(&i);
+    let t = sidecount::build(&s, &i.params).unwrap();
+    assert!(t.tiles.iter().any(|x| x.auxiliary));
+    let mut vertical = 0;
+    for (index, site) in t.tiles.iter().enumerate() {
+        assert_eq!(site.depth, (site.row % 3) as f64);
+        for &j in &t.neighbors[index] {
+            if site.row.abs_diff(t.tiles[j].row) == 1 {
+                vertical += 1;
+                assert_ne!(site.depth, t.tiles[j].depth);
+            }
+        }
+    }
+    assert!(vertical > 0);
+}
+
+#[test]
+fn a05_depth_bounds_determinism_and_depth_independent_topology() {
+    use rand::RngCore;
+    for randomness in [0.0, 0.5, 1.0] {
+        for seed in 1..=3 {
+            let mut i = input("cylinder");
+            i.params.allowed_sides = vec![5, 6, 7];
+            i.params.randomness = randomness;
+            i.params.seed = seed;
+            let s = surface(&i);
+            let mut previous: Option<Topology> = None;
+            for depth in [1.0, 2.0, 3.0] {
+                i.params.depth = depth;
+                let mut rng = seeds::rng(seed);
+                let sites = seeds::place(&s, &i.params, &mut rng).unwrap();
+                // Placement MUST consume exactly the old positional stream,
+                // independent of depth, and carry symmetric provisional offsets.
+                for site in &sites {
+                    assert_eq!(site.depth, seeds::symmetric_depth(site.row, depth));
+                }
+                let mut expected_rng = rng.clone();
+                let (t, _) = sidecount::repair_with_report(&s, &i.params, sites, &mut rng).unwrap();
+                let repeat = sidecount::build(&s, &i.params).unwrap();
+                assert_eq!(
+                    serde_json::to_vec(&t).unwrap(),
+                    serde_json::to_vec(&repeat).unwrap()
+                );
+                assert!(t.tiles.iter().all(|x| (0.0..=depth).contains(&x.depth)));
+                if randomness == 0.0 {
+                    // Regular cylinder needs no repair draws; relief at zero
+                    // randomness must not advance the stream either.
+                    assert_eq!(rng.next_u64(), expected_rng.next_u64());
+                }
+                if let Some(mut prior) = previous.take() {
+                    // Exact equality of ALL old fields, not only adjacency.
+                    for (a, b) in prior.tiles.iter_mut().zip(&t.tiles) {
+                        assert!((a.depth / (depth - 1.0) - b.depth / depth).abs() < 1e-14);
+                        a.depth = b.depth;
+                    }
+                    assert_eq!(prior, t);
+                }
+                previous = Some(t);
+            }
+        }
     }
 }
