@@ -188,9 +188,8 @@ fn reference_cylinder_uses_size_band_only_and_keeps_widths() {
     let expected = check(&i);
     assert!(expected.feasible);
     assert_eq!(expected.columns, [8]);
-    for obsolete_tolerance in [0.001, 0.5, 0.75, 2.0] {
-        // The legacy field stays in the contract until S2b, but no longer screens columns.
-        i.params.surface_tolerance = obsolete_tolerance;
+    for depth in [0.001, 0.5, 0.75, 2.0] {
+        i.params.depth = depth;
         assert_eq!(check(&i), expected);
         let msg = message(&expected, &i.params);
         assert!(msg.contains("8 columns: ~7.1 in piece width"));
@@ -262,4 +261,16 @@ fn size_band_empty_intervals_still_reject_and_advise_variation() {
     i.params.size_variation = 0.10;
     assert_eq!(check(&i).columns, [8]);
     assert!(check(&i).feasible);
+}
+
+#[test]
+fn configured_depth_reaches_public_feasibility_message() {
+    let mut i = input("cylinder");
+    i.params.depth = 0.1;
+    let out = vstone_core::feasibility_only(&i);
+    assert!(out.message.contains("Warning: depth 0.1 in"));
+    i.params.depth = 0.2 * i.params.target_size;
+    let quiet = vstone_core::feasibility_only(&i);
+    assert!(!quiet.message.contains("Warning:"));
+    assert_eq!(out.feasibility, quiet.feasibility);
 }

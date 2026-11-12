@@ -27,6 +27,17 @@ fn run(input: &CoreInput, only: bool) -> CoreOutput {
         Sha256::digest(serde_json::to_vec(input).expect("serializable input"))
     ));
     let p = &input.params;
+    if !p.depth.is_finite() || p.depth <= 0.0 {
+        out.message = "invalid depth: expected a positive finite value in inches".into();
+        return out;
+    }
+    if !p.max_corner_angle_deg.is_finite()
+        || p.max_corner_angle_deg <= 180.0
+        || p.max_corner_angle_deg >= 270.0
+    {
+        out.message = "invalid max_corner_angle_deg: expected a finite angle strictly between 180 and 270 degrees".into();
+        return out;
+    }
     if input.schema != "vstone.core_input/1"
         || input.surface.kind != "revolve"
         || p.allowed_sides.is_empty()

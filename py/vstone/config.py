@@ -35,7 +35,8 @@ class RunConfig:
     max_edge: float
     min_corner_angle_deg: float
     bevel_cap_deg: float
-    surface_tolerance: float
+    depth: float
+    max_corner_angle_deg: float
     min_bounding_square: float
     allow_waists: bool
 
@@ -68,7 +69,7 @@ def load_config(path: str) -> RunConfig:
                 "max_edge",
                 "min_corner_angle_deg",
                 "bevel_cap_deg",
-                "surface_tolerance",
+                "depth",
                 "min_bounding_square",
                 "blanks_size",
                 "blanks_usable",
@@ -104,6 +105,11 @@ def load_config(path: str) -> RunConfig:
         for key in ("min_corner_angle_deg", "bevel_cap_deg"):
             if getattr(config, key) >= 180:
                 raise ConfigError(f"{key}: must be below 180 degrees")
+        if (
+            type(config.max_corner_angle_deg) not in (int, float)
+            or not 180 < config.max_corner_angle_deg < 270
+        ):
+            raise ConfigError("max_corner_angle_deg: expected 180 < angle < 270")
         return config
     except (ValueError, TypeError, OSError, KeyError) as error:
         raise ConfigError(str(error)) from error
@@ -134,7 +140,8 @@ def _load_config(path: str) -> RunConfig:
             "max_edge": 6.0,
             "min_corner_angle_deg": 70.0,
             "bevel_cap_deg": 60.0,
-            "surface_tolerance": 0.75,
+            "depth": 2.0,
+            "max_corner_angle_deg": 225.0,
             "min_bounding_square": 4.0,
             "allow_waists": False,
         },
@@ -264,7 +271,7 @@ def _load_config(path: str) -> RunConfig:
         "max_edge",
         "min_corner_angle_deg",
         "bevel_cap_deg",
-        "surface_tolerance",
+        "depth",
         "min_bounding_square",
         "allow_waists",
     ]
@@ -288,9 +295,9 @@ def _load_config(path: str) -> RunConfig:
     if not isinstance(bevel_cap_deg, (int, float)):
         raise TypeError("[limits] section 'bevel_cap_deg' must be a number")
 
-    surface_tolerance = limits_data["surface_tolerance"]
-    if not isinstance(surface_tolerance, (int, float)):
-        raise TypeError("[limits] section 'surface_tolerance' must be a number")
+    depth = limits_data["depth"]
+    if not isinstance(depth, (int, float)):
+        raise TypeError("[limits] section 'depth' must be a number")
 
     min_bounding_square = limits_data["min_bounding_square"]
     if not isinstance(min_bounding_square, (int, float)):
@@ -355,7 +362,8 @@ def _load_config(path: str) -> RunConfig:
         max_edge=max_edge,
         min_corner_angle_deg=min_corner_angle_deg,
         bevel_cap_deg=bevel_cap_deg,
-        surface_tolerance=surface_tolerance,
+        depth=depth,
+        max_corner_angle_deg=limits_data["max_corner_angle_deg"],
         min_bounding_square=min_bounding_square,
         allow_waists=allow_waists,
         blanks_size=blanks_size,

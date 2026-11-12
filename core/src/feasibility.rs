@@ -161,12 +161,11 @@ fn append_range(ranges: &mut Vec<[f64; 2]>, range: [f64; 2]) {
 
 /// Plain-language inch-valued feasibility summary; does not change the selected side set.
 pub fn message(surface: &Surface, f: &Feasibility, p: &Params) -> String {
-    message_with_depth(surface, f, p, 2.0)
+    message_with_depth(surface, f, p, p.depth)
 }
 
 /// Depth-aware summary with size and depth in inches; depth must be positive and finite.
 /// Depth is advisory only and cannot change feasibility or side-set suggestions.
-/// S2b must wire params.depth here when the input contract is migrated.
 pub fn message_with_depth(surface: &Surface, f: &Feasibility, p: &Params, depth: f64) -> String {
     let mut text = geometry_message(surface, f, p);
     let low = 0.15 * p.target_size;

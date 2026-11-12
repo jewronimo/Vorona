@@ -38,7 +38,8 @@ All lengths in inches, angles in degrees, points as `[x, y, z]`, Y up.
     "max_edge": 6.0,
     "min_corner_angle_deg": 70.0,
     "bevel_cap_deg": 60.0,
-    "surface_tolerance": 0.75,
+    "depth": 2.0,
+    "max_corner_angle_deg": 225.0,
     "min_bounding_square": 4.0,
     "allow_waists": false,
     "blank_size": 12.0,
@@ -47,6 +48,14 @@ All lengths in inches, angles in degrees, points as `[x, y, z]`, Y up.
   }
 }
 ```
+
+A05 settings: `depth` is positive and finite (inches; omitted defaults to 2.0).
+`max_corner_angle_deg` is finite and strictly between 180 and 270 degrees
+(omitted defaults to 225); it bounds reflex corners. `thickness` defaults to
+0.375 inches in the shell and may be thicker. The obsolete surface-tolerance
+setting is not accepted. Depth governs seeds only, not face/corner distances;
+C2 warns outside `[0.15, 0.30] × target_size` without refusing feasibility.
+C3/C4 seed-depth and plane generation and C6 distance reports follow separately.
 
 Later (L1) `surface.kind = "mesh"` with `vertices` and `triangles`; not in v1.
 
