@@ -97,7 +97,11 @@ point defines one flat polygon, and the polygons may sit wherever the geometry p
 
 **Owner:** CORE · **Depends on:** C3 (with seed depths) · **Unblocks:** C5
 **Read first:** this amendment §2; GEOMETRY §6; `docs/prototypes/A05_depth_proto.py` (reference
-only, not production code).
+only, not production code). Background: Pluta et al., "PH-CPF: Planar Hexagonal Meshing using
+Coordinate Power Fields", SIGGRAPH 2021 (arXiv 2105.02507): face shape vs curvature (convex / brick /
+bow-tie) and its Appendix C planarization. Note the opposite trade-off: PH-CPF keeps corners on the
+surface and accepts ~1 % non-planarity; we need exactly flat stone, so planarity is by construction
+and surface closeness is the flexible part.
 
 ### Goal
 For each seed `i` find a plane `πᵢ` through the seed's 3D position `pᵢ` such that the corners
@@ -115,6 +119,9 @@ For each seed `i` find a plane `πᵢ` through the seed's 3D position `pᵢ` suc
   `max_corner_angle_deg`, `bevel_cap_deg`, `|det| ≥ 1e-8` and piece size (usable square / minimum
   bounding square). Damped Gauss–Newton / Levenberg–Marquardt, fixed iteration cap, fixed thresholds,
   deterministic term order.
+- Barrier schedule (as in PH-CPF Appendix C): start the barrier weights small (e.g. 1e-3) and double
+  them every 5 iterations, keeping a weak pull toward the corner targets throughout. The problem is
+  non-convex, so the starting planes matter as much as the solver.
 - `OptReport { iterations, corner_distance: {min, max, median}, reflex_corners, violated: Vec<(tile, limit)> }`.
 
 ### Acceptance
