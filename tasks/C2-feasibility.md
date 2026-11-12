@@ -155,3 +155,72 @@ Before any tiling, decide whether the allowed side set can work, explain why not
 - Official container check passed: `runs/logs/C2-owner-recheck-1916.log` (fmt/clippy, all Rust tests, ruff and 39 Python tests).
 - Initial `runs/logs/C2-owner-1915.log` exposed the stale 0.5-in reference fixture; synchronized it to the approved example and reran the complete check.
 - Reference regression verifies 0.75 -> 8 columns and 0.50 -> 10, inclusive dip bound and infeasibility; candidate messages report widths and dips.
+
+### A05 stage 1 — size-only feasibility and depth advisory (2026-11-11, unverified)
+- Scope: `runs/worktrees/A05`, branch `task/C2-depth-warning`. Only C2 Rust,
+  its tests, removal of obsolete C3 fixture overrides, and this handoff changed.
+  Old C2-dip/C4-planes worktrees untouched; no commits, merges, pushes,
+  dependency changes, Python edits, schemas, or params migration.
+- A05 supersedes every historical surface-dip restriction above: even columns
+  now use the size band alone. Removed dip screening/ranges and all dip message
+  labels, retained per-candidate circumference/n widths and the 16-count cap.
+  Empty *size* intervals still block feasibility; A04 suggestions/variation
+  advice continue to use that same size-only estimator.
+- Explicit depth-aware entry point: `feasibility::message_with_depth(surface,
+  feasibility, params, depth)` (inches). Existing `message` delegates with 2.0 in.
+  `check` intentionally remains depth-free: depth cannot affect feasibility,
+  columns, defect estimates, suggestions or variation thresholds. Warning is
+  appended for depth strictly below 0.15*target_size or above 0.30*target_size;
+  inclusive endpoints are accepted. Range display rounds to two decimal places,
+  comparisons use unrounded f64 bounds. Caller must provide positive finite depth.
+- S2b handoff: migrate Rust Params, schemas/fixtures and SHELL config together
+  under A05; validate positive finite `depth`, then change the existing `message`
+  delegation from literal 2.0 to `p.depth` (or route lib.rs directly through
+  `message_with_depth`). Remove legacy `surface_tolerance` from Params and from
+  the compatibility-loop regression when that field disappears. No contract
+  migration is necessary for this C2 stage. The normal feasible generate path
+  remains the pre-existing not-implemented placeholder; the feasibility-only
+  and infeasible generation paths already receive the default-depth advisory.
+- C3 seed depths and revised C4 are NOT implemented here. C3 fixture-only
+  `surface_tolerance=2.0` overrides were removed; topology acceptance criteria
+  are unchanged. New C4 must start from the migrated stack, not old C4 code.
+- Exact acceptance -> test mapping (test source: `core/tests/feasibility.rs`
+  unless explicitly named otherwise):
+  1. Original cylinder even wrap -> `cylinder_even_wrap`.
+  2. Cone tight/wide, dislocations and nearest suggestion ->
+     `cone_dislocations_and_wide`.
+  3. Bulge pentagon estimate and suggestion -> `bulge_requires_positive_defects`.
+  4. All side sets blocked by disallowed waist, heights named ->
+     `waist_blocks_all_sets_and_names_heights`.
+  5. Full small-radius range -> `small_radius_covers_full_height`.
+  6. Pentagon-only rejection/alternative -> `pentagons_only_cannot_balance_cylinder`.
+  7. Exact messages with width-only diagnostics -> `exact_message_snapshots`;
+     A04 exact cone message and analytic variation threshold ->
+     `cone_numeric_variation_message_snapshot`.
+  8. Determinism, generation gate and feasibility CLI ->
+     `generation_gate_cli_and_determinism`.
+  9. A05 size-only reference cylinder (8 columns even at obsolete tolerance
+     0.001/0.5), retained 8/10 candidate widths, no dip/tolerance messages ->
+     `reference_cylinder_uses_size_band_only_and_keeps_widths`.
+  10. A05 inclusive recommended endpoints, just-outside warning on both sides,
+      unchanged feasible/infeasible result and suggestions, deterministic message,
+      default wrapper equivalence -> `depth_warning_is_inclusive_advisory_and_deterministic`.
+  11. Default 2-inch warning reaches feasibility-only output without refusing ->
+      `default_depth_warning_reaches_generation_messages_without_refusal`.
+  12. Empty size interval remains infeasible in both generation gates; first
+      working variation is 10%, choosing 8 columns ->
+      `size_band_empty_intervals_still_reject_and_advise_variation`.
+  13. Preserved C3 regression coverage without dip overrides ->
+      `core/tests/topology.rs`: `regular_cylinder_matches_c2_columns`,
+      `every_interior_edge_on_cylinder_cone_and_vase_is_in_band`,
+      `cone_and_vase_repair_reduce_nonzero_residual`,
+      `cone_and_bulge_defect_budgets`, `cone_pairs_are_constructed_before_repair`;
+      all other C3 tests retained unchanged.
+- Deleted obsolete dip acceptance tests: reference dip selection, inclusive dip
+  bound, dip-empty-interval rejection, and dip-constrained variation threshold.
+  Replacement tests above preserve size-only boundaries, empty intervals,
+  meaningful variation advice and diagnostic coverage under A05.
+- Loaded `vorona-rust-container` skill. Only container `cargo fmt` ran:
+  `docker exec -w /src/runs/worktrees/A05/core Vorona-dev cargo fmt`.
+  NO tests, checks or diagnostic binaries run; parent must run official
+  `make dev-check` against this worktree and record results before certification.

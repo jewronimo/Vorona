@@ -238,3 +238,65 @@ fn numeric_variation_contract_and_range() {
         serde_json::from_str(include_str!("../../docs/schema/core_output.schema.json")).unwrap();
     assert_eq!(schema["$defs"]["Params"], output_schema["$defs"]["Params"]);
 }
+
+#[test]
+fn depth_and_reflex_angle_contract_defaults_and_ranges() {
+    let schema: serde_json::Value =
+        serde_json::from_str(include_str!("../../docs/schema/core_input.schema.json")).unwrap();
+    let validator = jsonschema::draft202012::new(&schema).unwrap();
+    let mut raw: serde_json::Value = serde_json::from_str(INPUT).unwrap();
+    raw["params"].as_object_mut().unwrap().remove("depth");
+    raw["params"]
+        .as_object_mut()
+        .unwrap()
+        .remove("max_corner_angle_deg");
+    assert!(validator.is_valid(&raw));
+    let defaults: CoreInput = serde_json::from_value(raw.clone()).unwrap();
+    assert_eq!(defaults.params.depth, 2.0);
+    assert_eq!(defaults.params.max_corner_angle_deg, 225.0);
+    for (key, good, bad) in [
+        ("depth", vec![0.001, 2.0, 100.0], vec![-1.0, 0.0]),
+        (
+            "max_corner_angle_deg",
+            vec![180.001, 225.0, 269.999],
+            vec![170.0, 180.0, 270.0, 300.0],
+        ),
+    ] {
+        for value in good {
+            let mut data = raw.clone();
+            data["params"][key] = serde_json::json!(value);
+            assert!(validator.is_valid(&data));
+            let input: CoreInput = serde_json::from_value(data).unwrap();
+            assert!(!vstone_core::feasibility_only(&input)
+                .message
+                .starts_with("invalid"));
+        }
+        for value in bad {
+            let mut data = raw.clone();
+            data["params"][key] = serde_json::json!(value);
+            assert!(!validator.is_valid(&data));
+            let input: CoreInput = serde_json::from_value(data).unwrap();
+            for out in [
+                vstone_core::generate(&input),
+                vstone_core::feasibility_only(&input),
+            ] {
+                assert_eq!(out.status, "error");
+                assert!(out.message.contains(key));
+            }
+        }
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let mut input = defaults.clone();
+            if key == "depth" {
+                input.params.depth = value;
+            } else {
+                input.params.max_corner_angle_deg = value;
+            }
+            let out = vstone_core::feasibility_only(&input);
+            assert_eq!(out.status, "error");
+            assert!(out.message.contains(key));
+        }
+    }
+    raw["params"]["surface_tolerance"] = serde_json::json!(0.75);
+    assert!(!validator.is_valid(&raw));
+    assert!(serde_json::from_value::<CoreInput>(raw).is_err());
+}

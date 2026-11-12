@@ -142,3 +142,29 @@ def test_no_geometry_decisions_in_shell():
         ]
         assert not any("core" in module for module in imports)
     assert not list((ROOT / "py/vstone").glob("*feasibility*"))
+
+
+@pytest.mark.parametrize(("key", "value"), [
+    ("depth", "0"), ("depth", "nan"), ("depth", "true"),
+    ("max_corner_angle_deg", "170"), ("max_corner_angle_deg", "180"),
+    ("max_corner_angle_deg", "270"), ("max_corner_angle_deg", "nan"),
+    ("max_corner_angle_deg", "true"), ("surface_tolerance", "0.75"),
+])
+def test_a05_invalid_settings(tmp_path, key, value):
+    path = tmp_path / "bad.toml"
+    path.write_text('[input]\nprofile = "profile.step"\n[limits]\n' + f'{key} = {value}\n')
+    with pytest.raises(ConfigError, match=key):
+        load_config(path)
+
+
+def test_a05_defaults_and_core_keys(tmp_path):
+    path = tmp_path / "minimal.toml"
+    path.write_text('[input]\nprofile = "profile.step"\n')
+    for config in (load_config(path), load_config(EXAMPLE)):
+        assert config.depth == 2.0
+        assert config.max_corner_angle_deg == 225.0
+        assert config.thickness == 0.375
+        params = build_core_input(config, [[9., 0.], [9., 60.]])["params"]
+        assert params["depth"] == 2.0
+        assert params["max_corner_angle_deg"] == 225.0
+        assert "surface_tolerance" not in params

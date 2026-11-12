@@ -29,7 +29,10 @@ pub struct Params {
     pub max_edge: f64,
     pub min_corner_angle_deg: f64,
     pub bevel_cap_deg: f64,
-    pub surface_tolerance: f64,
+    #[serde(default = "default_depth")]
+    pub depth: f64,
+    #[serde(default = "default_max_corner_angle")]
+    pub max_corner_angle_deg: f64,
     pub min_bounding_square: f64,
     pub allow_waists: bool,
     pub blank_size: f64,
@@ -142,4 +145,11 @@ pub struct Stats {
 pub struct Provenance {
     pub core_version: String,
     pub input_sha256: String,
+}
+
+fn default_depth() -> f64 {
+    2.0
+}
+fn default_max_corner_angle() -> f64 {
+    225.0
 }
