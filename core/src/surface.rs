@@ -366,3 +366,27 @@ mod tests {
         }
     }
 }
+
+impl crate::planes::SurfaceQueries for Surface {
+    fn frame(&self, uv: [f64; 2]) -> ([f64; 3], [f64; 3]) {
+        // Endpoint continuation belongs to this surface adapter, not the solver.
+        let end = self.v_of_s(self.length());
+        let v = uv[1].clamp(0., end);
+        let s = self.s_of_v(v);
+        let n = self.normal(uv[0], s);
+        let mut p = self.point(uv[0], s);
+        if uv[1] != v {
+            let h = 1e-5;
+            let q = self.point(uv[0], (s + h).min(self.length()));
+            let r = self.point(uv[0], (s - h).max(0.));
+            let delta: [f64; 3] = std::array::from_fn(|i| q[i] - r[i]);
+            let length = delta.iter().map(|x| x * x).sum::<f64>().sqrt();
+            let tangent = delta.map(|x| x / length);
+            p = std::array::from_fn(|i| p[i] + tangent[i] * (uv[1] - v) * self.r(s));
+        }
+        (p, n)
+    }
+    fn distance(&self, p: [f64; 3]) -> f64 {
+        self.signed_distance(p)
+    }
+}
