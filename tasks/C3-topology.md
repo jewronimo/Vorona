@@ -321,3 +321,54 @@ where every interior tile's side count is in the allowed set.
 - Vase C2 target ±1: `cone_and_bulge_defect_budgets`; spacing: `every_interior_edge_on_cylinder_cone_and_vase_is_in_band` and `cone_and_vase_repair_reduce_nonzero_residual`; seed diversity: `seeds_one_to_five_change_adjacency_not_just_positions` — all passed.
 - Dev/test profiles use opt-level=2; measured complete check is below three minutes. Cone construction, manifold and determinism regressions passed.
 - C3 remains on task/C3-topology, uncommitted and unmerged; no merge performed.
+
+### A05 seed-depth handoff (2026-11-11; parent verification pending)
+- Worktree `runs/worktrees/C3-depth`, branch `task/C3-seed-depths`, based on
+  main `9f2b361`. Applied `vorona-rust-container`; read AGENTS, PLAN, A01–A05,
+  C1/C2 dependency cards, C3 and its referenced geometry/spec requirements.
+- Added internal `Seed.depth` (inches). Provisional placement/inserted sites use
+  row modulo 3: `0, D/2, D`. After successful positional/side-count repair,
+  final offsets use `(1-r)*symmetric + r*Uniform[0,D]` in stable tile order.
+  This includes auxiliary level-rim rows. At zero randomness no relief draws
+  are consumed. At nonzero randomness all relief draws happen AFTER every
+  placement/repair draw, on the same caller-owned ChaCha8 stream. Existing
+  placement, triangulation, repair scoring/decisions and RNG draws are unchanged.
+- `seeds::place` deliberately returns symmetric PROVISIONAL depths; callers
+  needing finished organic relief must use `sidecount::build` or `repair` /
+  `repair_with_report`, whose successful results carry finalized depths. This
+  sequencing prevents extra draws from changing positional repair. Insert/delete
+  proposals likewise carry provisional depths until the final site list exists.
+- Positive finite D validated at placement and direct repair entry points.
+  No public JSON contract/schema/Params edits, Python, C4, dependencies,
+  original-checkout edits, commits, merges or pushes.
+- Exact new acceptance -> tests:
+  * Every finalized depth within [0,D], randomness 0/.5/1, seeds 1–3,
+    D=1/2/3 -> `a05_depth_bounds_determinism_and_depth_independent_topology`.
+  * Symmetric exact repeating 0,D/2,D and ALL upper/lower adjacent-row
+    Delaunay neighbors unequal, including level-rim auxiliary rows ->
+    `a05_symmetric_depths_differ_across_every_vertical_neighbor`.
+  * Exact blend, independent uniform draw for each seed and exactly one
+    shared-stream draw per seed at positive randomness -> unit test
+    `seeds::depth_tests::a05_blend_uses_exact_uniform_draws_after_the_symmetric_pattern`.
+  * Byte-identical repeat results, linearly scaled relief across D and exact
+    equality of every old seed field, corners, neighbors and boundary flags
+    across D -> `a05_depth_bounds_determinism_and_depth_independent_topology`;
+    same test asserts zero-randomness relief does not advance the stream.
+  * Existing SHA256 determinism/manifold/side-count/spacing/diversity tests
+    remain unchanged (except adding depth to two explicit metric-test literals).
+- Ran ONLY `docker exec -w /src/runs/worktrees/C3-depth/core Vorona-dev cargo fmt`.
+  No tests/checks/diagnostic binaries run. All new acceptance is UNVERIFIED;
+  parent must run official dev-check and record results. No C4 implementation.
+
+### Parent A05 seed-depth verification
+- Official `make -f /tmp/vorona-c3-depth-check.mk dev-check` completed in
+  `Vorona-dev`: Rust fmt/clippy and all Rust tests passed, including 13 topology
+  tests; Python ruff and all 49 Python tests passed.
+- Log in the main checkout: `runs/logs/C3-depth-verify.log`.
+- Bounds, deterministic blending and unchanged topology ->
+  `a05_depth_bounds_determinism_and_depth_independent_topology` -> PASS.
+- Symmetric vertical-neighbor separation ->
+  `a05_symmetric_depths_differ_across_every_vertical_neighbor` -> PASS.
+- Exact shared-stream blending ->
+  `seeds::depth_tests::a05_blend_uses_exact_uniform_draws_after_the_symmetric_pattern`
+  -> PASS. Implementation remains unmerged for owner review.

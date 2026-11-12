@@ -13,6 +13,8 @@ pub struct Seed {
     pub s: f64,
     pub row: usize,
     pub auxiliary: bool,
+    /// Inward-normal offset in inches; finalized after side-count repair.
+    pub depth: f64,
 }
 
 /// Continue the conformal chart tangentially beyond each open end (inches to v).
@@ -30,7 +32,9 @@ pub fn extended_v(surface: &Surface, s: f64) -> f64 {
 /// Rejects invalid parameters, infeasibility, unsupported rims, or excessive site counts.
 /// The caller owns the sole ChaCha8 stream for both seeding and subsequent repair.
 pub fn place(surface: &Surface, p: &Params, rng: &mut ChaCha8Rng) -> Result<Vec<Seed>, String> {
-    if !p.randomness.is_finite()
+    if !p.depth.is_finite()
+        || p.depth <= 0.0
+        || !p.randomness.is_finite()
         || !(0.0..=1.0).contains(&p.randomness)
         || !p.target_size.is_finite()
         || p.target_size <= 0.0
@@ -161,6 +165,7 @@ pub fn place(surface: &Surface, p: &Params, rng: &mut ChaCha8Rng) -> Result<Vec<
                 s: moved,
                 row,
                 auxiliary,
+                depth: symmetric_depth(row, p.depth),
             });
         }
     }
@@ -280,6 +285,28 @@ fn construct_dislocations(
     Ok(())
 }
 
+/// Symmetric inward offset in inches for the repeating three-row relief.
+/// `depth` must be positive and finite, as checked by placement.
+pub fn symmetric_depth(row: usize, depth: f64) -> f64 {
+    (row % 3) as f64 * 0.5 * depth
+}
+
+/// Finalize inward offsets in inches after ALL positional repair draws.
+/// Uses the caller's sole seeded stream in stable tile order. Placement carries
+/// symmetric provisional depths so triangulation and repair never consume relief
+/// draws or change their pre-A05 random-stream results.
+pub(crate) fn assign_depths(sites: &mut [Seed], p: &Params, rng: &mut ChaCha8Rng) {
+    for site in sites {
+        let symmetric = symmetric_depth(site.row, p.depth);
+        site.depth = if p.randomness == 0.0 {
+            symmetric
+        } else {
+            let uniform = rng.gen_range(0.0..=1.0) * p.depth;
+            ((1.0 - p.randomness) * symmetric + p.randomness * uniform).clamp(0.0, p.depth)
+        };
+    }
+}
+
 /// Start the sole deterministic random stream from the numeric contract seed.
 pub fn rng(seed: u64) -> ChaCha8Rng {
     ChaCha8Rng::seed_from_u64(seed)
@@ -297,4 +324,43 @@ pub fn spacing(surface: &Surface, a: &Seed, b: &Seed) -> f64 {
         surface.r((a.s + b.s) * 0.5)
     };
     du.hypot(dv) * mean_radius
+}
+
+#[cfg(test)]
+mod depth_tests {
+    use super::*;
+
+    #[test]
+    fn a05_blend_uses_exact_uniform_draws_after_the_symmetric_pattern() {
+        let input: crate::model::CoreInput = serde_json::from_str(include_str!(
+            "../../tests/fixtures/core_input_cylinder.json"
+        ))
+        .unwrap();
+        for randomness in [0.25, 0.5, 1.0] {
+            let mut p = input.params.clone();
+            p.randomness = randomness;
+            p.depth = 2.0;
+            let mut sites: Vec<_> = (0..12)
+                .map(|row| Seed {
+                    u: 0.0,
+                    v: 0.0,
+                    s: 0.0,
+                    row,
+                    auxiliary: false,
+                    depth: 0.0,
+                })
+                .collect();
+            let mut actual = rng(42);
+            let mut expected = actual.clone();
+            assign_depths(&mut sites, &p, &mut actual);
+            for site in sites {
+                let uniform = expected.gen_range(0.0..=1.0) * p.depth;
+                assert_eq!(
+                    site.depth,
+                    (1.0 - randomness) * symmetric_depth(site.row, p.depth) + randomness * uniform
+                );
+            }
+            assert_eq!(actual.gen::<u64>(), expected.gen::<u64>());
+        }
+    }
 }

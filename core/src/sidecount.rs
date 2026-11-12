@@ -261,6 +261,9 @@ pub fn repair_with_report(
     sites: Vec<Seed>,
     rng: &mut ChaCha8Rng,
 ) -> Result<(Topology, RepairReport), String> {
+    if !p.depth.is_finite() || p.depth <= 0.0 {
+        return Err("depth must be positive and finite".into());
+    }
     if p.allowed_sides.is_empty() {
         return Err("empty allowed side set".into());
     }
@@ -280,6 +283,7 @@ pub fn repair_with_report(
         report.final_score = score(surface, p, &f, &current);
         let mut bad = violations(surface, p, &current);
         if bad.is_empty() && defect_penalty(surface, &f, &current) == 0 {
+            seeds::assign_depths(&mut current.tiles, p, rng);
             return Ok((current, report));
         }
         if bad.is_empty() {
@@ -421,6 +425,7 @@ pub fn repair_with_report(
                         s,
                         row: site.row,
                         auxiliary: false,
+                        depth: seeds::symmetric_depth(site.row, p.depth),
                     });
                     if let Ok(candidate) = Topology::build(inserted) {
                         let value = score(surface, p, &f, &candidate);
