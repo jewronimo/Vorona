@@ -732,3 +732,38 @@ docker exec -e CARGO_TARGET_DIR=/tmp/vstone-c4-dense-colored-target -w /src/runs
   symmetry independence, official worktree-selected dev-check and supervisor96.
   Existing cone/vase geometry failures remain distinct. Report timeouts honestly;
   do not infer <=60s from historical DOUBLE-FIT timings or compact measurements.
+
+### Four ROW-depth size-band diagnostics — 2026-11-12
+
+- Preserved eb9b3ae and all prior coloring/motion artifacts/jobs; neither promoted.
+  New experimental-only `c4_sizeband` snapshots seed/repair modules, sharing native
+  Seed/Topology/solver and unchanged spacing/manufacturing checks. Locally clears
+  the pentagon feasibility/quota only for vase[6] with zero column changes and no
+  heptagon requirement. Production sources/contracts unchanged.
+- r0/seed1/depth1.5/target6.5: vase[6]30% FAIL32/48; vase[6]35% FAIL32/48.
+  Vase25% cannot seed: native C2 requires column sequence[7,8,7], TWO changes,
+  as well as4pentagons. Pentagon-only authorization does NOT bypass that separate
+  dislocation requirement; geometry and actual degrees unavailable, not a solver
+  failure or passing case. No hidden size relaxation to make it run.
+- Cone[5,6,7]25% PASS0/63, no degree5/7 ANYWHERE. Complete final result equals
+  historical cone[6]25% result. Physical sites all77 degree6; all sites91degree6
+  +14 open-hull degree4. Vase30/35 physical64degree6; all2degree3/14degree4/
+  2degree5/78degree6; degree5 are exclusively hull fans, not interior pentagons.
+- Exact inputs/full result outputs/commands/summary: MAIN runs/logs/C4-sizeband-*.
+  Report including all height-quarter per-type native violations and parent
+  worktree-selecting official-check recipe: docs/prototypes/C4_sizeband_report.md.
+- Container fmt/clippy and targeted production-cone topology equality PASS.
+  No official make dev-check by child; no commit/merge/push. These are native C4
+  whole-tile measurements, not production approval or C5/C6 clipped-piece checks.
+
+### Vase[6]30% symmetric depth sweep — 2026-11-12
+
+New C4-depthsweep-prefixed diagnostics/report preserve existing jobs/artifacts. Depth0(explicit zero-limit)/.5/1/1.5: native failed48/48,48/48,45/48,32/48;1.5 reuses identical prior sizeband result. Exact actual rows, tile IDs, violation types, normalized height ranges, quarter bands, internal5/7 counts and topology-equality assertions: docs/prototypes/C4_depthsweep_report.md and runs/logs/C4-depthsweep-summary.json. All seed positions/graphs equal after removing depth; internal5/7=0/0. No shallow pass, no production scaling rule proposed/implemented. New diagnostic example only plus aggregation/docs; existing production/support code untouched. Targeted container build/clippy passed; parent owns official worktree-correct dev-check recipe in report. No acceptance tick, commit, merge, push or old-job changes.
+
+### Conformal vase reproduction (2026-11-12)
+
+Preserved owner A05_vase_proto.py unchanged; added native analytic/conformal diagnostic
+and isolated reference penalty optimiser (production optimize unchanged). See
+`docs/prototypes/C4_conformal_vase_report.md` and main `runs/logs/C4-conformal-*`.
+Manufacturing success is experimental C2/C3 bypass evidence, not production acceptance.
+Parent owns official worktree-correct dev-check; not run by this subagent. C5 deferred.

@@ -1458,3 +1458,7 @@ mod polishing_tests {
         assert!(limits_improve(&a, &report(0., vec![])));
     }
 }
+
+#[path = "planes_conformal_experiment.rs"]
+mod conformal_experiment;
+pub use conformal_experiment::experimental_conformal_penalty;
