@@ -711,3 +711,64 @@ fn reference_lattice_has_nine_columns_without_row_stretching() {
     assert!(ys.iter().filter(|&&s| s < 0.).count() >= 2);
     assert!(ys.iter().filter(|&&s| s > surf.length()).count() >= 2);
 }
+
+/// Every production profile uses exact conformal row steps, while C2 still
+/// supplies variable ring counts; no fixed-column diagnostic bypass is used.
+#[test]
+fn production_rows_use_conformal_pitch_and_c2_variable_columns() {
+    for name in ["cylinder", "cone_9_to_6", "vase_bulge"] {
+        let mut i = input(name);
+        i.params.randomness = 0.;
+        i.params.allowed_sides = vec![5, 6, 7];
+        let surf = surface(&i);
+        let f = vstone_core::feasibility::check(&surf, &i.params);
+        let sites = seeds::place(&surf, &i.params, &mut seeds::rng(1)).unwrap();
+        let mut rows = BTreeMap::<usize, Vec<&seeds::Seed>>::new();
+        for site in &sites {
+            rows.entry(site.row).or_default().push(site);
+        }
+        let rows: Vec<_> = rows.values().collect();
+        let mut counts = Vec::new();
+        // C2 describes the continuous profile, not the discrete ordinary
+        // rows. Exact (unstretched) chart steps can cross the final count
+        // transition and the physical rim together. The support rows carry
+        // that endpoint count; excluding them invents a missing transition.
+        for row in &rows {
+            let n = row.len() as u32;
+            assert!(f.columns.contains(&n));
+            let radius = surf.r(row[0].s.clamp(0., surf.length()));
+            let width = std::f64::consts::TAU * radius / n as f64;
+            assert!(width >= i.params.target_size * (1. - i.params.size_variation) - 1e-9);
+            assert!(width <= i.params.target_size * (1. + i.params.size_variation) + 1e-9);
+            if counts.last() != Some(&n) {
+                counts.push(n);
+            }
+        }
+        assert_eq!(counts, f.columns, "{name}: C2 column sequence changed");
+        if name == "vase_bulge" {
+            // Independent regression evidence: the midpoint 8 -> 7 switch
+            // is below the final ordinary ring's radius, while its next
+            // mandated conformal step already lands beyond the rim. Do not
+            // stretch rows or change geometry to force an ordinary 7-ring.
+            let last = rows.iter().rfind(|r| !r[0].auxiliary).unwrap();
+            assert_eq!(last.len(), 8);
+            let switch = (8. * i.params.target_size * (1. - i.params.size_variation)
+                + 7. * i.params.target_size * (1. + i.params.size_variation))
+                / (2. * std::f64::consts::TAU);
+            assert!(surf.r(last[0].s) > switch);
+            let next_v = last[0].v + 3f64.sqrt() / 2. * std::f64::consts::TAU / 8.;
+            assert!(next_v > surf.v_of_s(surf.length()));
+            assert_eq!(rows.last().unwrap().len(), 7);
+        }
+        for pair in rows.windows(2).filter(|p| !p[0][0].auxiliary) {
+            let expected = 3f64.sqrt() / 2. * std::f64::consts::TAU / pair[0].len() as f64;
+            assert!(
+                (pair[1][0].v - pair[0][0].v - expected).abs() < 1e-12,
+                "{name}: row {} is not conformal",
+                pair[0][0].row
+            );
+        }
+        assert!(rows.iter().filter(|r| r[0].s < 0.).count() >= 2);
+        assert!(rows.iter().filter(|r| r[0].s > surf.length()).count() >= 2);
+    }
+}

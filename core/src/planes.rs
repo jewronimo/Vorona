@@ -566,6 +566,31 @@ pub fn fit_and_polish<S: SurfaceQueries>(
         fit_profile,
     })
 }
+/// Fit-only screen for deterministic depth ranking; retains exact fitted tilts.
+/// Geometry is in inches; malformed topology/bands return an OptError.
+pub(crate) fn screen_depth<S: SurfaceQueries>(
+    surface: &S,
+    t: &Topology,
+    p: &Params,
+) -> Result<(Planes, Vec<f64>), OptError> {
+    let problem = checked_native_problem(surface, t, p)?;
+    let (x, _) = prototype_fit(&problem, prototype_start(&problem));
+    let (_, geometry) = problem.evaluate(&x, 1.);
+    Ok((with_distances(surface, geometry), x))
+}
+/// Polish an unchanged screened fit without fitting twice; all native guards apply.
+/// Geometry is in inches; malformed topology/bands return an OptError.
+pub(crate) fn polish_depth<S: SurfaceQueries>(
+    surface: &S,
+    t: &Topology,
+    p: &Params,
+    baseline: Planes,
+    x: Vec<f64>,
+) -> Result<Planes, OptError> {
+    let problem = checked_native_problem(surface, t, p)?;
+    solve_from_baseline(surface, &problem, x, baseline)
+}
+
 fn checked_native_problem<'a, S: SurfaceQueries>(
     surface: &'a S,
     t: &'a Topology,
@@ -667,6 +692,7 @@ pub fn export_native<S: SurfaceQueries>(
 // Feasibility restoration must have zero target/fairness gradient. Otherwise
 // their nonzero gradient balances an arbitrarily small positive angle hinge,
 // leaving a nonzero violation floor even after successful early iterations.
+#[cfg(test)]
 fn polish_evaluate(problem: &Problem<'_>, x: &[f64]) -> (Vec<f64>, Planes) {
     let (mut residual, geometry) = problem.evaluate(x, 1.);
     let start = 3 * problem.targets.len();
@@ -685,10 +711,12 @@ fn polish_evaluate(problem: &Problem<'_>, x: &[f64]) -> (Vec<f64>, Planes) {
 // Conservative symbolic row supports for the frozen-domain polish residual.
 // Entire polygon blocks share the union of incident planes: reversal, inner
 // footprints and support-switches in bounding_square cannot invalidate this.
+#[cfg(test)]
 struct PolishPattern {
     rows: Vec<Vec<usize>>,
     colors: Vec<Vec<usize>>,
 }
+#[cfg(test)]
 impl PolishPattern {
     fn new(problem: &Problem<'_>, n: usize) -> Self {
         let mut rows = vec![vec![]; n];
@@ -746,6 +774,7 @@ impl PolishPattern {
         Self { rows, colors }
     }
 }
+#[cfg(test)]
 fn colored_polish_columns(
     problem: &Problem<'_>,
     x: &[f64],
@@ -783,142 +812,264 @@ fn solve<S: SurfaceQueries>(
 fn solve_from_baseline<S: SurfaceQueries>(
     surface: &S,
     problem: &Problem<'_>,
-    mut x: Vec<f64>,
+    x: Vec<f64>,
     baseline: Planes,
 ) -> Result<Planes, OptError> {
     if baseline.report.violated.is_empty() {
         return Ok(with_distances(surface, baseline));
     }
-    // Freeze the fitted measurement domain: polishing cannot hide a piece by
-    // moving it across a rim. Every supporting plane remains an unknown.
+    // Allow the reference penalty trajectory to cross limit boundaries, but
+    // compare its terminal geometry against ALL original native limits.
     let mut frozen = problem.clone();
     frozen.fixed_whole = Some(baseline.whole_tiles.clone());
-    let problem = &frozen;
-    let pattern = PolishPattern::new(problem, x.len());
-    let mut damping = 1e-6;
-    let mut best = None;
-    let mut best_rank = (usize::MAX, f64::INFINITY);
-    for iteration in 0..80 {
-        let (r, mut candidate) = polish_evaluate(problem, &x);
-        candidate.report.iterations = iteration;
-        let current_report = candidate.report.clone();
-        let rank = (
-            candidate.report.violated.len(),
-            candidate.report.limit_violation_sum_sq,
-        );
-        if rank < best_rank {
-            best_rank = rank;
-            best = Some(candidate);
-        }
-        if best.as_ref().is_some_and(|g| g.report.violated.is_empty()) {
-            break;
-        }
-        let columns = colored_polish_columns(problem, &x, &r, &pattern);
-        let apply = |v: &[f64]| {
-            let mut jv = vec![0.; r.len()];
-            for (column, &value) in columns.iter().zip(v) {
-                for &(k, d) in column {
-                    jv[k] += d * value;
-                }
-            }
-            columns
-                .iter()
-                .enumerate()
-                .map(|(i, col)| col.iter().map(|&(k, d)| d * jv[k]).sum::<f64>() + damping * v[i])
-                .collect::<Vec<_>>()
-        };
-        let rhs: Vec<_> = columns
-            .iter()
-            .map(|col| -col.iter().map(|&(k, d)| d * r[k]).sum::<f64>())
-            .collect();
-        let mut step = vec![0.; x.len()];
-        let mut rem = rhs.clone();
-        let mut direction = rem.clone();
-        let mut rr = dot_slice(&rem, &rem);
-        for _ in 0..80 {
-            if rr < 1e-28 {
-                break;
-            }
-            let ad = apply(&direction);
-            let denom = dot_slice(&direction, &ad);
-            if denom <= 0. {
-                break;
-            }
-            let alpha = rr / denom;
-            for i in 0..x.len() {
-                step[i] += alpha * direction[i];
-                rem[i] -= alpha * ad[i];
-            }
-            let next = dot_slice(&rem, &rem);
-            let beta = next / rr;
-            for i in 0..x.len() {
-                direction[i] = rem[i] + beta * direction[i];
-            }
-            rr = next;
-        }
-        let start = 3 * problem.targets.len();
-        let suffix = x.len()
-            + problem.fans.iter().map(Vec::len).sum::<usize>()
-            + problem.t.neighbors.iter().map(Vec::len).sum::<usize>();
-        let end = r.len() - suffix;
-        let mut accepted = false;
-        // Backtrack rather than amplifying damping forever when a full GN
-        // step crosses a previously satisfied hinge. All guards are unchanged.
-        for backtrack in 0..16 {
-            let scale = 0.5_f64.powi(backtrack);
-            let trial: Vec<_> = x
-                .iter()
-                .zip(&step)
-                .map(|(a, b)| a + scale * b.clamp(-0.25, 0.25))
-                .collect();
-            let (next, trial_geometry) = polish_evaluate(problem, &trial);
-            let finite = next[start..end].iter().all(|a| a.is_finite());
-            if finite
-                && dot_slice(&next, &next) < dot_slice(&r, &r)
-                && limits_improve(&current_report, &trial_geometry.report)
-            {
-                x = trial;
-                damping = (damping * 0.5).max(1e-12);
-                accepted = true;
-                break;
-            }
-        }
-        if !accepted {
-            damping = (damping * 4.).min(1e10);
-        }
-    }
-    // The final accepted trial is not visited by the next loop iteration.
-    // Rank it at the final iteration's weight so the full fixed budget counts.
-    let weight = 1.;
-    let (_, mut candidate) = problem.evaluate(&x, weight);
-    candidate.report.iterations = 80;
-    let rank = (
-        candidate.report.violated.len(),
-        candidate.report.limit_violation_sum_sq,
-    );
-    if rank < best_rank {
-        best = Some(candidate);
-    }
-    let proposed = best.unwrap();
-    // Final guard is relative to the ORIGINAL fit, never a moving baseline.
-    let result = with_distances(
-        surface,
-        if limits_improve(&baseline.report, &proposed.report) {
-            proposed
-        } else {
-            baseline
-        },
-    );
+    let (post, iterations) = reference_penalty_fit(x, |x| reference_penalty_residual(&frozen, x));
+    let (_, mut proposed) = frozen.evaluate(&post, 1.);
+    proposed.report.iterations = iterations;
+    let result = if polish_candidate_is_safe(surface, &baseline, &proposed) {
+        proposed
+    } else {
+        baseline
+    };
+    let result = with_distances(surface, result);
     if result.report.violated.is_empty() {
         Ok(result)
     } else {
         Err(OptError {
-            message: "A05 fixed iteration budget: limits remain violated; owner decision required"
-                .into(),
+            message: "A05 fixed reference penalty budget: native limits remain violated".into(),
             best: Some(Box::new(result)),
         })
     }
 }
+// Frozen membership alone must not hide pieces by moving them through a rim.
+fn polish_candidate_is_safe<S: SurfaceQueries>(
+    surface: &S,
+    baseline: &Planes,
+    proposed: &Planes,
+) -> bool {
+    proposed.whole_tiles == baseline.whole_tiles
+        && proposed.planes.len() == baseline.planes.len()
+        && proposed.corners.len() == baseline.corners.len()
+        && proposed.polygons.len() == baseline.polygons.len()
+        && proposed.corners.iter().flatten().all(|v| v.is_finite())
+        && proposed
+            .planes
+            .iter()
+            .all(|p| p.n.iter().all(|v| v.is_finite()) && p.d.is_finite())
+        && proposed.polygons.iter().enumerate().all(|(i, ids)| {
+            ids.len() == baseline.polygons[i].len()
+                && (!baseline.whole_tiles[i]
+                    || ids
+                        .iter()
+                        .all(|&k| surface.inside_rims(proposed.corners[k])))
+        })
+        && limits_improve(&baseline.report, &proposed.report)
+}
+
+fn reference_penalty_residual(problem: &Problem<'_>, x: &[f64]) -> Vec<f64> {
+    let p = problem.p;
+    let (nn, c, _) = problem.geometry(x);
+    let mut r: Vec<_> = c
+        .iter()
+        .zip(&problem.targets)
+        .flat_map(|(&c, &t)| sub(c, t).map(|v| 0.05 * v))
+        .collect();
+    r.extend(x.iter().map(|v| 0.05 * v));
+    for (i, fan) in problem.fans.iter().enumerate() {
+        if !problem
+            .fixed_whole
+            .as_ref()
+            .expect("polish domain is frozen")[i]
+        {
+            continue;
+        }
+        let area: f64 = (0..fan.len())
+            .map(|k| {
+                dot(
+                    cross(
+                        sub(c[fan[k]], problem.points[i]),
+                        sub(c[fan[(k + 1) % fan.len()]], problem.points[i]),
+                    ),
+                    nn[i].n,
+                )
+            })
+            .sum();
+        let mut ids = fan.clone();
+        if area < 0. {
+            ids.reverse();
+        }
+        for k in 0..ids.len() {
+            let prev = c[ids[(k + ids.len() - 1) % ids.len()]];
+            let cur = c[ids[k]];
+            let next = c[ids[(k + 1) % ids.len()]];
+            let u = sub(cur, prev);
+            let v = sub(next, cur);
+            let l = norm(v);
+            let angle = 180. - dot(cross(u, v), nn[i].n).atan2(dot(u, v)).to_degrees();
+            r.push(5. * (p.min_edge + 0.2 - l).max(0.));
+            r.push(5. * (l - p.max_edge + 0.2).max(0.));
+            r.push(if angle <= 180. {
+                0.5 * (p.min_corner_angle_deg + 3. - angle).max(0.)
+            } else {
+                0.
+            });
+            r.push(if angle > 180. {
+                0.5 * (angle - p.max_corner_angle_deg + 3.).max(0.)
+            } else {
+                0.
+            });
+        }
+    }
+    r
+}
+
+fn reference_penalty_fit(
+    mut x: Vec<f64>,
+    residual: impl Fn(&[f64]) -> Vec<f64>,
+) -> (Vec<f64>, usize) {
+    use nalgebra::{DMatrix, DVector};
+    let n = x.len();
+    let order: Vec<_> = (0..2)
+        .flat_map(|axis| (0..n / 2).map(move |i| 2 * i + axis))
+        .collect();
+    let mut radius = dot_slice(&x, &x).sqrt();
+    if radius == 0. {
+        radius = 1.;
+    }
+    let mut scales = vec![0f64; n];
+    let mut alpha = 0.;
+    let mut nfev = 1;
+    let mut r = residual(&x);
+    loop {
+        let cost = 0.5 * dot_slice(&r, &r);
+        let mut jac = DMatrix::zeros(r.len(), n);
+        for (col, &j) in order.iter().enumerate() {
+            let mut trial = x.clone();
+            let h = f64::EPSILON.sqrt() * if x[j] < 0. { -1. } else { 1. } * x[j].abs().max(1.);
+            trial[j] += h;
+            let dx = trial[j] - x[j];
+            let rr = residual(&trial);
+            for k in 0..r.len() {
+                jac[(k, col)] = (rr[k] - r[k]) / dx;
+            }
+        }
+        // scipy x_scale="jac": nondecreasing column norms.
+        for (col, scale) in scales.iter_mut().enumerate() {
+            *scale = scale.max(jac.column(col).norm());
+            if *scale == 0. {
+                *scale = 1.;
+            }
+            jac.column_mut(col).scale_mut(1. / *scale);
+        }
+        let rv = DVector::from_column_slice(&r);
+        let gradient = jac.transpose() * &rv;
+        if gradient.iter().map(|v| v.abs()).fold(0., f64::max) < 1e-8 || nfev == 60 {
+            return (x, nfev);
+        }
+        // Preserve the original tall-SVD floating-point trajectory. QR reduction
+        // is equivalent in exact arithmetic but perturbs TRF steps enough to
+        // change the basin and frozen whole-tile domain on organic cylinders.
+        // Keep single-fit reuse and exact colored polish probes independently.
+        let svd = jac.clone().svd(true, true);
+        let singular = svd.singular_values;
+        let uf = svd.u.unwrap().transpose() * rv;
+        let v = svd.v_t.unwrap().transpose();
+        let suf = singular.component_mul(&uf);
+        let full_rank = singular[n - 1] > f64::EPSILON * r.len() as f64 * singular[0];
+        let mut stop = false;
+        while nfev < 60 {
+            let gn = -(&v * uf.component_div(&singular));
+            let step = if full_rank && gn.norm() <= radius {
+                alpha = 0.;
+                gn
+            } else {
+                let phi = |a: f64| {
+                    let denom = singular.map(|s| s * s + a);
+                    let norm = suf.component_div(&denom).norm();
+                    let derivative = -suf
+                        .iter()
+                        .zip(denom.iter())
+                        .map(|(u, d)| u * u / (d * d * d))
+                        .sum::<f64>()
+                        / norm;
+                    (norm - radius, derivative)
+                };
+                let mut upper = suf.norm() / radius;
+                let mut lower = if full_rank {
+                    let (f, d) = phi(0.);
+                    -f / d
+                } else {
+                    0.
+                };
+                if !full_rank && alpha == 0. {
+                    alpha = (0.001 * upper).max((lower * upper).sqrt());
+                }
+                for _ in 0..10 {
+                    if alpha < lower || alpha > upper {
+                        alpha = (0.001 * upper).max((lower * upper).sqrt());
+                    }
+                    let (f, d) = phi(alpha);
+                    if f < 0. {
+                        upper = alpha;
+                    }
+                    let ratio = f / d;
+                    lower = lower.max(alpha - ratio);
+                    alpha -= (f + radius) * ratio / radius;
+                    if f.abs() < 0.01 * radius {
+                        break;
+                    }
+                }
+                let mut step = -(&v * suf.component_div(&singular.map(|s| s * s + alpha)));
+                step *= radius / step.norm();
+                step
+            };
+            let step_norm = step.norm();
+            let predicted = -(0.5 * (&jac * &step).norm_squared() + gradient.dot(&step));
+            let mut trial = x.clone();
+            for (col, &j) in order.iter().enumerate() {
+                trial[j] += step[col] / scales[col];
+            }
+            let rr = residual(&trial);
+            nfev += 1;
+            if rr.iter().any(|v| !v.is_finite()) {
+                radius = 0.25 * step_norm;
+                continue;
+            }
+            let reduction = cost - 0.5 * dot_slice(&rr, &rr);
+            let ratio = if predicted > 0. {
+                reduction / predicted
+            } else if predicted == 0. && reduction == 0. {
+                1.
+            } else {
+                0.
+            };
+            let next_radius = if ratio < 0.25 {
+                0.25 * step_norm
+            } else if ratio > 0.75 && step_norm > 0.95 * radius {
+                2. * radius
+            } else {
+                radius
+            };
+            stop = (reduction < 1e-8 * cost && ratio > 0.25)
+                || step_norm < 1e-8 * (1e-8 + dot_slice(&x, &x).sqrt());
+            if !stop {
+                alpha *= radius / next_radius;
+                radius = next_radius;
+            }
+            if reduction > 0. {
+                x = trial;
+                r = rr;
+                break;
+            }
+            if stop {
+                break;
+            }
+        }
+        if stop || nfev == 60 {
+            return (x, nfev);
+        }
+    }
+}
+
 // Do not trade a newly broken limit for improvements elsewhere. The merit is
 // independent of target fit, fairness, barrier schedule and iteration number.
 fn limits_improve(current: &OptReport, trial: &OptReport) -> bool {
@@ -1435,6 +1586,82 @@ mod polishing_tests {
         );
     }
     #[test]
+    fn reference_penalty_is_deterministic() {
+        let residual = |x: &[f64]| vec![x[0] - 0.25, 2. * (x[1] + 0.75), 0.05 * x[0]];
+        let a = reference_penalty_fit(vec![0.1, -0.2], residual);
+        let b = reference_penalty_fit(vec![0.1, -0.2], residual);
+        assert_eq!(a, b);
+        assert!((a.0[0] - 0.25 / 1.0025).abs() < 1e-7);
+        assert!((a.0[1] + 0.75).abs() < 1e-7);
+    }
+    #[test]
+    fn terminal_guard_checks_all_limits_membership_and_rims() {
+        struct Rims;
+        impl SurfaceQueries for Rims {
+            fn frame(&self, _: [f64; 2]) -> (V, V) {
+                ([0.; 3], [0., 1., 0.])
+            }
+            fn distance(&self, _: V) -> f64 {
+                0.
+            }
+            fn inside_rims(&self, p: V) -> bool {
+                p[1].abs() <= 1.
+            }
+        }
+        let baseline = Planes {
+            planes: vec![Plane {
+                n: [0., 1., 0.],
+                d: 0.,
+            }],
+            corners: vec![[0.; 3]; 3],
+            polygons: vec![vec![0, 1, 2]],
+            whole_tiles: vec![true],
+            report: OptReport {
+                limit_violation_sum_sq: 2.,
+                iterations: 0,
+                corner_distance: DistanceStats {
+                    min: 0.,
+                    max: 0.,
+                    median: 0.,
+                },
+                reflex_corners: 0,
+                violated: vec![(0, "max_edge".into())],
+            },
+        };
+        let mut trial = baseline.clone();
+        trial.report.limit_violation_sum_sq = 0.;
+        trial.report.violated.clear();
+        assert!(polish_candidate_is_safe(&Rims, &baseline, &trial));
+        for name in [
+            "determinant",
+            "min_edge",
+            "min_corner_angle_deg",
+            "max_corner_angle_deg",
+            "bevel_cap_deg",
+            "min_bounding_square",
+            "blank_usable",
+            "outer_simple",
+            "inner_simple",
+            "inner_orientation",
+        ] {
+            let mut broken = trial.clone();
+            broken.report.violated.push((0, name.into()));
+            assert!(
+                !polish_candidate_is_safe(&Rims, &baseline, &broken),
+                "{name}"
+            );
+        }
+        let mut dropped = trial.clone();
+        dropped.whole_tiles[0] = false;
+        assert!(!polish_candidate_is_safe(&Rims, &baseline, &dropped));
+        let mut crossing = trial.clone();
+        crossing.corners[0][1] = 2.;
+        assert!(!polish_candidate_is_safe(&Rims, &baseline, &crossing));
+        let mut nonfinite = trial;
+        nonfinite.planes[0].d = f64::NAN;
+        assert!(!polish_candidate_is_safe(&Rims, &baseline, &nonfinite));
+    }
+    #[test]
     fn never_trade_limits_for_target_cost_or_new_broken_limits() {
         let report = |score, violated: Vec<(usize, String)>| OptReport {
             limit_violation_sum_sq: score,
@@ -1459,6 +1686,8 @@ mod polishing_tests {
     }
 }
 
+#[cfg(feature = "c4-experiments")]
 #[path = "planes_conformal_experiment.rs"]
 mod conformal_experiment;
+#[cfg(feature = "c4-experiments")]
 pub use conformal_experiment::experimental_conformal_penalty;

@@ -165,7 +165,7 @@ fn cone_numeric_variation_message_snapshot() {
     let surface = Surface::from_profile(&i.surface.profile).unwrap();
     let f = check(&i);
     assert_eq!(feasibility::message_with_depth(&surface, &f, &i.params, 1.5),
-        "6 only is not possible at ±15 %: the circumference changes, so it needs about 2 five-and-seven-sided pairs. With size variation of at least ±25 %, [6] works. Try [5,6,7] or [4,6,7] or [5,6,8] or [4,6,8]. At height 0.00 in, size-range candidates (width = circumference/n): 9 columns: ~6.3 in piece width; 10 columns: ~5.7 in piece width; 11 columns: ~5.1 in piece width. These local estimates do not certify whole-profile feasibility.");
+        "6 only is not possible at ±15 %: the circumference changes, so it needs about 2 five-and-seven-sided pairs. With size variation of at least ±25 %, [6] works. Native C2 supports [6] with size variation ≥ 22% (whole-percent grid); C3/C4 verification still required. Try [5,6,7] or [4,6,7] or [5,6,8] or [4,6,8]. At height 0.00 in, size-range candidates (width = circumference/n): 9 columns: ~6.3 in piece width; 10 columns: ~5.7 in piece width; 11 columns: ~5.1 in piece width. These local estimates do not certify whole-profile feasibility.");
     i.params.size_variation = 20.0 / 100.0;
     assert!(!check(&i).feasible);
     i.params.size_variation = 25.0 / 100.0;
@@ -280,4 +280,30 @@ fn configured_depth_reaches_public_feasibility_message() {
     let quiet = vstone_core::feasibility_only(&i);
     assert!(!quiet.message.contains("Warning:"));
     assert_eq!(out.feasibility, quiet.feasibility);
+}
+
+#[test]
+fn constant_wrap_absorbs_curvature_and_hex_advice_is_native_verified() {
+    for (profile, variation) in [("cone_9_to_6", 0.25), ("vase_bulge", 0.30)] {
+        let mut i = input(profile);
+        i.params.target_size = 6.5;
+        i.params.allowed_sides = vec![6];
+        i.params.size_variation = variation;
+        let surface = Surface::from_profile(&i.surface.profile).unwrap();
+        let f = feasibility::check(&surface, &i.params);
+        assert!(f.feasible, "{profile}: {f:?}");
+        assert_eq!(f.column_changes, 0);
+        assert_eq!(f.pentagons_needed, 0);
+        assert_eq!(f.heptagons_needed, 0);
+        i.params.size_variation = 0.05;
+        let failed = feasibility::check(&surface, &i.params);
+        assert!(!failed.feasible);
+        let text = feasibility::message(&surface, &failed, &i.params);
+        let advice = text.split("[6] with size variation ≥ ").nth(1).unwrap();
+        let percent: f64 = advice.split('%').next().unwrap().parse().unwrap();
+        i.params.size_variation = percent / 100.;
+        assert!(feasibility::check(&surface, &i.params).feasible);
+        i.params.size_variation -= 0.01;
+        assert!(!feasibility::check(&surface, &i.params).feasible);
+    }
 }

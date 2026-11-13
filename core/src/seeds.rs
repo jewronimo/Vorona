@@ -81,33 +81,49 @@ pub fn place_with_jitter(
         }
         *value = sequence[cursor] as usize;
     }
-    // Row heights track the local lattice scale; no time-dependent stopping.
+    // Integrate rows in the conformal chart, not by forward Euler in arc
+    // length. C2's variable-column schedule remains authoritative: each row
+    // takes the equilateral chart pitch of its local ring. Constant-radius
+    // profiles reduce to exactly the existing cylindrical lattice.
     let mut arcs = vec![0.0];
+    let mut v = 0.0;
+    let end_v = surface.v_of_s(surface.length());
     loop {
         let s = *arcs.last().unwrap();
         let index = ((s / surface.length() * steps as f64).round() as usize).min(steps);
-        let h = 3.0_f64.sqrt() / 2.0 * TAU * surface.r(s) / columns[index] as f64;
-        if s + h >= surface.length() {
+        let dv = 3.0_f64.sqrt() / 2.0 * TAU / columns[index] as f64;
+        if v + dv >= end_v {
             break;
         }
         if arcs.len() >= 10_000 {
             return Err("seed row cap exceeded".into());
         }
-        arcs.push(s + h);
+        v += dv;
+        arcs.push(surface.s_of_v(v));
     }
     if arcs.len() < 2 {
         return Err("profile too short for two lattice rows".into());
     }
-    // Never stretch the hex lattice to meet the rim. Continue the same pitch
-    // beyond the leftover interval; two FULL auxiliary rows support each end.
-    let bottom_pitch = arcs[1] - arcs[0];
+    // Extend the SAME chart pitch at each end. Do not stretch the last
+    // ordinary row to the physical rim; support planes need two full rows.
+    let bottom_dv = 3.0_f64.sqrt() / 2.0 * TAU / columns[0] as f64;
     let last = *arcs.last().unwrap();
     let index = ((last / surface.length() * steps as f64).round() as usize).min(steps);
-    let top_pitch = 3.0_f64.sqrt() / 2.0 * TAU * surface.r(last) / columns[index] as f64;
-    arcs.insert(0, -bottom_pitch);
-    arcs.insert(0, -2.0 * bottom_pitch);
-    arcs.push(last + top_pitch);
-    arcs.push(last + 2.0 * top_pitch);
+    let top_dv = 3.0_f64.sqrt() / 2.0 * TAU / columns[index] as f64;
+    arcs.insert(0, -bottom_dv * surface.r(0.0));
+    arcs.insert(0, -2.0 * bottom_dv * surface.r(0.0));
+    let mut support = 0;
+    let mut k = 1;
+    while support < 2 {
+        let next_v = v + k as f64 * top_dv;
+        arcs.push(if next_v <= end_v {
+            surface.s_of_v(next_v)
+        } else {
+            surface.length() + (next_v - end_v) * surface.r(surface.length())
+        });
+        support += usize::from(next_v > end_v);
+        k += 1;
+    }
     let mut seeds = Vec::new();
     for (row, &s) in arcs.iter().enumerate() {
         let index = ((s.clamp(0.0, surface.length()) / surface.length() * steps as f64).round()

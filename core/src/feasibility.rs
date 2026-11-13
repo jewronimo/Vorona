@@ -122,6 +122,16 @@ fn estimate(surface: &Surface, p: &Params) -> Feasibility {
     } else {
         f.column_changes = 0;
     }
+    // Integrated curvature is not a mandatory defect quota on an open chart:
+    // a single admissible periodic wrap can absorb taper/bulge through the
+    // requested width band. C3 still validates actual spacing and topology.
+    // Keep curvature/dislocation estimates when no constant wrap exists.
+    if possible && f.column_changes == 0 {
+        f.pentagons_needed = 0;
+        f.heptagons_needed = 0;
+        positive = 0.;
+        negative = 0.;
+    }
     let lower = p.allowed_sides.iter().copied().min().unwrap_or(9) as f64;
     let upper = p.allowed_sides.iter().copied().max().unwrap_or(4) as f64;
     let average =
@@ -249,6 +259,23 @@ fn geometry_message(surface: &Surface, f: &Feasibility, p: &Params) -> String {
                 format_set(&p.allowed_sides)
             ));
             break;
+        }
+    }
+    // Native, verified hex-only alternative on a deterministic whole-percent
+    // grid; this advises only and never overrides the caller's parameters.
+    let samples = (surface.length() / STEP).ceil() as usize;
+    let changing_radius = (0..=samples).any(|i| {
+        (surface.r(surface.length() * i as f64 / samples as f64) - surface.r(0.)).abs() > 1e-9
+    });
+    if changing_radius {
+        let mut hex = p.clone();
+        hex.allowed_sides = vec![6];
+        for percent in 5..=50 {
+            hex.size_variation = f64::from(percent) / 100.;
+            if estimate(surface, &hex).feasible {
+                text.push_str(&format!(" Native C2 supports [6] with size variation ≥ {percent}% (whole-percent grid); C3/C4 verification still required."));
+                break;
+            }
         }
     }
     if !f.suggestions.is_empty() {

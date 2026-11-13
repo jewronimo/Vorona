@@ -11,7 +11,13 @@ crate-type = ["rlib", "cdylib"]
 name = "vstone-core"
 path = "src/main.rs"
 
+[[example]]
+name = "c4_conformal_vase"
+required-features = ["c4-experiments"]
+
 [features]
+# Archived unguarded diagnostics are opt-in, never linked by production builds.
+c4-experiments = []
 python = ["dep:pyo3", "dep:pyo3-build-config"]
 
 [dependencies]

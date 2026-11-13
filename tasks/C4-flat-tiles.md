@@ -767,3 +767,108 @@ and isolated reference penalty optimiser (production optimize unchanged). See
 `docs/prototypes/C4_conformal_vase_report.md` and main `runs/logs/C4-conformal-*`.
 Manufacturing success is experimental C2/C3 bypass evidence, not production acceptance.
 Parent owns official worktree-correct dev-check; not run by this subagent. C5 deferred.
+
+### Production matrix executable handoff — 2026-11-12
+
+- Added `core/examples/c4_production_matrix.rs`, four positional arguments matching
+  `C4_production_matrix_runner.py`: profile, configured depth, randomness, seed.
+  It calls `depth::select` directly (native C2/C3/C4, no prototype export or old
+  diagnostic jitter override), emits one JSON object with top-level `passed`,
+  exact input params, complete selection/candidate reports and measured runtime.
+  Profiles are embedded fixtures, so execution does not depend on working directory.
+  Defaults/limits remain those of the existing cylinder fixture; cone/vase use
+  `[5,6,7]`. Geometry failure returns `passed:false`, not a successful certification.
+- Container formatting and targeted example type-check passed. Parent owns official
+  dev-check, release build, deadline timings and full96. No full matrix run here.
+- Caution: the finite physical-extent policy can require many candidate solves;
+  a supervisor timeout means search incomplete, not infeasibility. This executable
+  writes only after selection returns, so killed cases have no complete candidate
+  geometry record. CoreOutput `generate` still intentionally remains the pre-C5
+  placeholder; this harness certifies only the internal native C2/C3/C4 path.
+
+```sh
+docker exec -e CARGO_TARGET_DIR=/tmp/vstone-c4-production-fix-target -w /src/runs/worktrees/C4-depth/core Vorona-dev cargo build --release --example c4_production_matrix
+docker exec -w /src/runs/worktrees/C4-depth Vorona-dev taskset -c 0 python docs/prototypes/C4_production_matrix_runner.py /tmp/vstone-c4-production-fix-target/release/examples/c4_production_matrix --timeout 60
+```
+
+### Conformal topology check correction — 2026-11-12
+
+- Investigated the official-check vase C2 sequence assertion independently.
+  The final ordinary ring is at arc 36.89653760188676, radius
+  7.203388948552877, with 8 columns. Its width is inside the unchanged
+  target 6 ±15% band. The midpoint 8→7 switch radius is below that
+  radius; the next exact conformal step already crosses the physical rim.
+  Both top support rows correctly have 7 columns. C2 samples the
+  continuous profile; it does not promise an ordinary ring in every
+  continuous count interval. Requiring one would needlessly alter geometry.
+- Corrected the test to compare C2 against the complete row sequence,
+  including support rows. Added per-row circumference/column width band
+  assertions and explicit vase checks proving the final ordinary 8-ring
+  precedes the switch and its next unstretched chart step exceeds the rim.
+  Existing conformal pitch and two-support-rows-per-end checks remain.
+- No production source/geometry/depth selection changed in this correction;
+  no fresh production matrix required for this test-only correction.
+  Used the vorona-rust-container skill and isolated target
+  /tmp/vstone-c4-topology-fix-target in Vorona-dev. Parent retains ownership
+  of official dev-check and the immutable pre-fix production matrix.
+- Targeted verification: container `cargo fmt` PASS; `cargo clippy --test topology -- -D warnings` PASS; `cargo test --test topology` PASS (20 tests, including the 90-case topology matrix, 148.91 s). Official full dev-check remains parent-owned.
+
+### Production timeout diagnosis and chart-cache correction — 2026-11-12
+
+Immutable cylinder r.5/s3 eventually PASS at depth1.75 in71.102s (2 candidates), not exhaustion. Cone r0/s1 diagnostic completed9 failing candidates through3.5 in121.864s then was externally stopped during3.75; no cone/vase exhaustion claim. Repeated dense SVD dominates fit; whole search can require255 cone/190 vase candidates. Removed repeated depth-independent C3 repair by exact chart reuse/row-offset reassignment; regression proves complete cached/fresh topology equality. Container3 depth unit tests/clippy/format/release build PASS; parent official dev-check required after edit. Full evidence, commands/scope/follow-up: docs/prototypes/C4_timeout_diagnosis.md; MAIN runs/logs/C4-timeout-*. Official immutable binary/matrix left untouched; no merge/commit/push.
+
+### Owner-ranked production depth iteration — 2026-11-12
+
+Owner supersedes exhaustive-polish policy: fit-screen4 ascending.25in candidates, then polish best2 (native violation energy/count/depth total order), reusing exact fits; retain full guards/evidence. Explicitly NOT globally smallest feasible polished depth; window can miss deeper/unshortlisted success. Matrix cone[6]/25%,vase[6]/30%,cylinder unchanged. Corrected C2 curvature false-rejection ONLY for admissible constant-wrap open charts; native C3/C4 still enforce actual limits. Native-derived whole-percent [6] advice at target6.5:cone≥25%,vase≥28%, with neighboring-percent regression; no silent override/schema change.
+
+Final targeted native r0/s1 controls:cone PASS depth1.5 in37.199s,vase PASS depth1.75 in18.143s,4screened/2polished,zero native violations in each successful polished result. Full artifacts MAIN runs/logs/C4-ranked-final-*. No broad production-pass/C5/C6 claim. Targeted public tests18PASS,ranking2PASS,native fit-reuse parity1PASS; final fmt/clippy/release build PASS. Parent owns official worktree dev-check/full96 (not rerun by child). Exact recipe/settings/evidence/risks/changed files:docs/prototypes/C4_ranked_depth_report.md. Old immutable executable/matrix untouched; no commit/merge/push.
+
+Configured-depth runtime follow-up: reserved first polish for configured fit, stop only on native guarded success; otherwise screen remaining three and polish their best one (four fits/two polishes maximum). This is a deliberate heuristic change from mandatory four screens/top-two-only ranking; may miss second-ranked deeper success. No solver/limit/target/guard relaxation. Cylinder r0 depth1.5 seeds1/2 PASS in20.755/20.256s; seed1 repeat19.664s, byte-identical entire record excluding elapsed. Direct configured profile18.050s and identical native report; byte-exact reuse/direct native gate1PASS37.17s. Main logs `C4-cylinder-fast-final-*`, `C4-cylinder-fast-native-parity.log`. Final targeted unit3PASS/1ignored; clippy and fmt pass. Parent retains official check/full matrix ownership. No commits.
+
+
+### Final FAST review preparation — 2026-11-12 (verification complete; review pending)
+
+Keeper is configured-first FAST, not mandatory all-four-fit-first. Inspection found
+FAST already present; no numerical source restoration made. MAIN immutable
+`runs/logs/C4-fast-owner-matrix96.jsonl` is94/96: cone/vase32/32 each;
+cylinder30/32 with r.5/s3,s8 external60s timeouts (search incomplete).
+Canonical runner now uses owner deadlines r0=60s, r>0=90s, records actual
+per-case deadline/timeout evidence; solver deterministic stopping unchanged.
+Production fixture cone[6]25%, vase[6]30%, cylinder unchanged; no target/limit relaxed.
+Unguarded conformal experiment is opt-in `c4-experiments`, default OFF;
+required regression inputs/helpers retained. No archived artifacts removed.
+
+Final review/diff inventory, provenance limits, targeted checks, exact final96
+invocation and WORKTREE-correct official dev-check recipe:
+`docs/prototypes/C4_final_review.md`. Claude review requested BEFORE commit.
+Parent owns official check/full native matrix; no final certification by child.
+
+#### Revised acceptance → test/evidence → result
+
+Original top checklist is superseded by A05 and owner follow-ups, NOT falsely ticked.
+The final results below supersede historical controls. Full detail and raw-log SHA256: `docs/prototypes/C4_final_results.md`.
+
+| Acceptance (current owner scope) | Test / evidence | Final result |
+| --- | --- | --- |
+| Cylinder[6], depth1.5,r0 native limits | final96 cylinder symmetric10 | 10/10 PASS;19.100–19.432s |
+| Cylinder r.5/1 seeds1..10 native limits | final96 organic20 | 19/20 PASS; r.5/seed3 timed out90.090s; unresolved incomplete search |
+| Cone/vase owner[6]25%/30%, r0/.5/1 seeds1..10 | final96 respective60 | 60/60 PASS |
+| Depth1/2 report-only, all profiles | final96 six controls | 6/6 PASS |
+| Seed/plane, depth-band, determinant/full-polygon limits | official planes/topology gates + native successful reports | tested gates PASS; C5/C6 certification deferred |
+| Repeat planes, feasible fixed point, exact fit reuse | official regression suite + targeted native byte-exact parity | PASS tested gates; no full96 repeat claim |
+| Configured-first return, fallback budgets and chart cache | depth unit/regression tests | PASS |
+| Cylinder release one-core runtime | taskset CPU0 final96 | Symmetric PASS <=60s; organic one90s timeout, original all-case60s claim NOT met |
+| Repository verification | MAIN runs/logs/C4-final-fast-dev-check.log | fmt/clippy/ruff PASS;69 Rust PASS,13 ignored;49 Python PASS |
+| Final release / complete matrix | MAIN runs/logs/C4-final-fast-build.log; C4-final-fast-matrix96.jsonl | build PASS;96 unique;95 PASS,1 timeout,0 completed geometry failures |
+| Claude review / merge | owner review handoff | review pending; NOT merged |
+
+C4 measures complete native whole tiles; C5 rim-clipped partial pieces and C6 final
+certification remain deferred. No commit/merge/push during this preparation.
+
+### Final parent evidence and review handoff
+
+Configured-first FAST retained; r0=60s / r>0=90s external deadlines. Default production excludes the unguarded conformal experiment. No limit relaxation or numerical change during verification.
+
+Original host pipeline stopped after73 records. Parent recovery appended only23 missing keys using the same release executable and canonical runner; no completed case replaced/retried. Recovery completed;96 unique records. Full evidence, corner/reflex statistics, per-mode timings, selected depths and source/log hashes: `docs/prototypes/C4_final_results.md`.
+
+C4 is review-ready, NOT fully accepted: cylinder r.5/seed3 remains unresolved after90s. Timeout is not evidence of infeasibility. C5/C6 remain out of scope. Owner explicitly requested commit before Claude review and no merge; this supersedes the preparatory report's suggested review-before-commit ordering. No push/merge performed.
