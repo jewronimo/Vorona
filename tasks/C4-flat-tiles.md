@@ -1,33 +1,41 @@
 # C4 — Flat tile optimizer
 
 **Owner:** CORE · **Depends on:** C3 · **Unblocks:** C5
-**Read first:** docs/GEOMETRY.md §4 (including the "important known result"), SPEC R-TL-3, R-TL-8..11, R-ST-3
+**Read first:** amendments/A01–A05 and all A05 owner follow-ups; docs/GEOMETRY.md §6.
 
 This is the hardest card. Keep it isolated; report progress in `## Agent notes` even if partial.
 
-## Goal
-Given the topology, find one plane per tile so that every corner (intersection of 3 planes)
-lies on the surface and the limits hold.
+## Goal and deliverables (A05 supersedes original surface-corner optimizer)
+Planes pass through native depth-space seeds; corners are three-plane intersections.
+Native fitted reference objective plus optional never-worse polish; bounded configured-first
+selector. Defaults depth 1.5in, max reflex 230 degrees. See A05 and owner follow-ups.
+C4 measures only complete non-auxiliary whole tiles; C5 clips partials later.
 
-## Deliverables
-- `core/src/planes.rs` — `optimize(surface, topology, params, rng) -> Result<Planes, OptError>`.
-- Energy and solver as in GEOMETRY.md §4 (or better, documented). Fixed iteration cap,
-  fixed convergence thresholds, deterministic term order.
-- `OptReport { iterations, max_corner_dist, max_face_depth, violated: Vec<(tile, limit)> }`.
+## Acceptance (A05 and owner follow-ups)
+Evidence below is historical parent verification of `7bf586c`, not certification of
+housekeeping edits. Full reports: `docs/prototypes/C4_final_results.md`.
 
-## Acceptance
-- [ ] Cylinder `[6]` randomness 0: max corner distance to surface ≤ `CORNER_ON_SURFACE_TOL`;
-      all tiles convex; corner angles ≥ min; edges within [min_edge, max_edge]; bevels ≤ 25°.
-- [ ] Same, randomness 0.5 and seeds 1..10: same limits hold.
-- [ ] Cone 9 → 6 and vase bulge with `[5,6,7]`: same limits hold.
-- [ ] Every corner's 3×3 system has `|det| ≥ 1e-8`.
-- [ ] Face depth ≤ `surface_tolerance` for every tile.
-- [ ] Runtime for the cylinder ≤ 60 s in release build on one core (report the time).
-- [ ] Deterministic: identical planes on repeat runs.
+- [x] Cylinder 18×60 symmetric depth1.5, all whole-tile limits including determinant,
+  bevel and size; 10/10 cases, 19.100–19.432s. Signed distances/reflex counts reported.
+- [ ] Cylinder randomness .5/1 seeds1..10 all complete within deadlines: 19/20 pass;
+  r.5/seed3 incomplete at90.090s. Owner explicitly accepts this open timeout for merge,
+  **not** a passed geometric result. Follow-up below.
+- [x] Cone/vase owner production fixtures at depth1.5: 60/60 pass; all native limits.
+  Owner fixtures use [6], variation25%/30%; historical A05 [5,6,7] is not claimed.
+- [x] Depth1/2 report-only: six complete reports, 6/6 pass (not acceptance gates).
+- [x] Seed on own plane / in depth band and deterministic repeat gates: parent
+  dev-check and reference/reuse evidence in final review/results; not a repeated96 matrix.
+- [x] Symmetric cylinder release one-core ≤60s (above); organic budget90s does NOT
+  satisfy the historical blanket ≤60s claim.
+- [ ] Post-housekeeping `make dev-check` and `make acceptance`, with raw logs:
+  parent-owned, pending. No geometry behavior changed in housekeeping.
 
-## If it does not converge
-Write what was tried and the best `OptReport` in `## Agent notes`, then stop. Jerry decides
-whether to loosen limits or try the Rhino-trial experiment (PLAN.md risks).
+## Timeout follow-up / owner decision
+Owner approved `7bf586c` for merge after housekeeping with cylinder configured depth1.5,
+r.5/seed3 90s timeout explicitly open. Keep this key visible in every matrix summary.
+Investigate runtime separately without changing limits, selector or budgets in this change.
+New failures are not covered by this exception. C5 remains responsible for rim clipping;
+C4 acceptance does not certify final C5/C6 pieces.
 
 ## Agent notes
 
@@ -872,3 +880,22 @@ Configured-first FAST retained; r0=60s / r>0=90s external deadlines. Default pro
 Original host pipeline stopped after73 records. Parent recovery appended only23 missing keys using the same release executable and canonical runner; no completed case replaced/retried. Recovery completed;96 unique records. Full evidence, corner/reflex statistics, per-mode timings, selected depths and source/log hashes: `docs/prototypes/C4_final_results.md`.
 
 C4 is review-ready, NOT fully accepted: cylinder r.5/seed3 remains unresolved after90s. Timeout is not evidence of infeasibility. C5/C6 remain out of scope. Owner explicitly requested commit before Claude review and no merge; this supersedes the preparatory report's suggested review-before-commit ordering. No push/merge performed.
+
+
+### Claude housekeeping review correction — 2026-11-13
+
+- Required historical seed8 test run ALONE at detached 7bf586c in Vorona-dev,
+  release/isolated target: FAILED exit101 (0 passed, 1 failed), full raw log
+  `runs/logs/C4-baseline-7bf586c-seed8.log`, clean revision inventory alongside
+  in `C4-baseline-7bf586c-seed8-provenance.log`. Thus not a newly introduced
+  housekeeping regression; see `docs/prototypes/C4_housekeeping.md` for command.
+- Chose explicit `c4-experiments` gating of three superseded research tests:
+  cone_and_vase_all_limits, organic_half_and_full_seeds_one_to_ten,
+  historical_cylinder_full_seed8. Original assertions/fixtures retained; no
+  limits weakened. Default release ignored gates retain all other tests,
+  including seed4/seed7 regressions; mandatory production selector matrix
+  still covers all 90 owner acceptance cases plus six report-only cases.
+- Host captures git revision/dirty inventory before Docker in shared logdir;
+  no container git lookup through host-absolute worktree paths. Existing
+  acceptance logs/matrix executable/target preserved, not restarted/rebuilt.
+- Parent still owns post-fix dev-check/full acceptance and commit/merge/push.

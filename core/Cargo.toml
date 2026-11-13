@@ -12,7 +12,55 @@ name = "vstone-core"
 path = "src/main.rs"
 
 [[example]]
+name = "c3_diagnostics"
+required-features = ["c4-experiments"]
+
+[[example]]
+name = "c4_ablation"
+required-features = ["c4-experiments"]
+
+[[example]]
 name = "c4_conformal_vase"
+required-features = ["c4-experiments"]
+
+[[example]]
+name = "c4_depth_profile"
+required-features = ["c4-experiments"]
+
+[[example]]
+name = "c4_depthsweep"
+required-features = ["c4-experiments"]
+
+[[example]]
+name = "c4_matrix"
+required-features = ["c4-experiments"]
+
+[[example]]
+name = "c4_native_export"
+required-features = ["c4-experiments"]
+
+[[example]]
+name = "c4_production_matrix"
+required-features = ["c4-experiments"]
+
+[[example]]
+name = "c4_reference"
+required-features = ["c4-experiments"]
+
+[[example]]
+name = "c4_report"
+required-features = ["c4-experiments"]
+
+[[example]]
+name = "c4_sizeband"
+required-features = ["c4-experiments"]
+
+[[example]]
+name = "c4_spatial"
+required-features = ["c4-experiments"]
+
+[[example]]
+name = "c4_vaserows"
 required-features = ["c4-experiments"]
 
 [features]

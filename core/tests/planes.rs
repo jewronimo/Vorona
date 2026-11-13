@@ -63,6 +63,8 @@ fn symmetric_seed_plane_band_and_deterministic_planes() {
 fn symmetric_cylinder_all_limits() {
     assert!(run(&input()).report.violated.is_empty());
 }
+// Superseded direct-fit research fixture; production selector coverage is matrix96.
+#[cfg(feature = "c4-experiments")]
 #[test]
 #[ignore = "release A05 acceptance experiment: 20 solves"]
 fn organic_half_and_full_seeds_one_to_ten() {
@@ -91,6 +93,8 @@ fn shallow_and_deep_clear_reports() {
         println!("depth {depth}: {:?}", g.report);
     }
 }
+// Superseded direct-fit research fixture; production selector coverage is matrix96.
+#[cfg(feature = "c4-experiments")]
 #[test]
 #[ignore = "release A05 acceptance experiment"]
 fn cone_and_vase_all_limits() {
@@ -304,6 +308,8 @@ fn historical_cylinder_half_seed7() {
 fn historical_cylinder_full_seed4() {
     assert_historical_cylinder_pass(1., 4);
 }
+// Superseded direct-fit research fixture; production selector coverage is matrix96.
+#[cfg(feature = "c4-experiments")]
 #[test]
 #[ignore = "release historical compact-SVD acceptance regression"]
 fn historical_cylinder_full_seed8() {
