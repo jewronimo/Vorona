@@ -31,12 +31,12 @@ fn message(f: &vstone_core::model::Feasibility, p: &vstone_core::model::Params) 
     )
 }
 #[test]
-fn cylinder_even_wrap() {
+fn cylinder_nearest_integer_wrap() {
     let f = check(&input("cylinder"));
     assert!(f.feasible);
     assert_eq!(f.columns.len(), 1);
     assert!((8..=12).contains(&f.columns[0]));
-    assert_eq!(f.columns[0] % 2, 0);
+    assert_eq!(f.columns[0], 9);
     assert!(f.suggestions.is_empty());
 }
 #[test]
@@ -102,18 +102,18 @@ fn exact_message_snapshots() {
     let i = input("cylinder");
     assert_eq!(
         message(&check(&i), &i.params),
-        "The allowed side set is feasible for this profile and size range. At height 0.00 in, size-range candidates (width = circumference/n): 10 columns: ~5.7 in piece width. These local estimates do not certify whole-profile feasibility."
+        "The allowed side set is feasible for this profile and size range. At height 0.00 in, size-range candidates (width = circumference/n): 9 columns: ~6.3 in piece width; 10 columns: ~5.7 in piece width; 11 columns: ~5.1 in piece width. These local estimates do not certify whole-profile feasibility."
     );
     let mut f = check(&i);
     f.feasible = false;
     f.pentagons_needed = 9;
     f.suggestions = vec![vec![5, 6], vec![5, 6, 7]];
-    assert_eq!(message(&f,&i.params), "6 only is not possible at ±15 %: this profile bulges, so it needs about 9 five-sided pieces. With size variation of at least ±20 %, [6] works. Try [5,6] or [5,6,7]. At height 0.00 in, size-range candidates (width = circumference/n): 10 columns: ~5.7 in piece width. These local estimates do not certify whole-profile feasibility.");
+    assert_eq!(message(&f,&i.params), "6 only is not possible at ±15 %: this profile bulges, so it needs about 9 five-sided pieces. With size variation of at least ±20 %, [6] works. Try [5,6] or [5,6,7]. At height 0.00 in, size-range candidates (width = circumference/n): 9 columns: ~6.3 in piece width; 10 columns: ~5.7 in piece width; 11 columns: ~5.1 in piece width. These local estimates do not certify whole-profile feasibility.");
     let mut i = i;
     i.params.allowed_sides = vec![5];
     let mut f = check(&i);
     f.suggestions = vec![vec![5, 6]];
-    assert_eq!(message(&f,&i.params), "5 only is not possible at ±15 %: the allowed side counts cannot balance the required average or fit an even column wrap. Try [5,6]. At height 0.00 in, size-range candidates (width = circumference/n): 10 columns: ~5.7 in piece width. These local estimates do not certify whole-profile feasibility.");
+    assert_eq!(message(&f,&i.params), "5 only is not possible at ±15 %: the allowed side counts cannot balance the required average or fit a column wrap. Try [5,6]. At height 0.00 in, size-range candidates (width = circumference/n): 9 columns: ~6.3 in piece width; 10 columns: ~5.7 in piece width; 11 columns: ~5.1 in piece width. These local estimates do not certify whole-profile feasibility.");
 }
 #[test]
 fn generation_gate_cli_and_determinism() {
@@ -165,7 +165,7 @@ fn cone_numeric_variation_message_snapshot() {
     let surface = Surface::from_profile(&i.surface.profile).unwrap();
     let f = check(&i);
     assert_eq!(feasibility::message_with_depth(&surface, &f, &i.params, 1.5),
-        "6 only is not possible at ±15 %: the circumference changes, so it needs about 4 five-and-seven-sided pairs. With size variation of at least ±25 %, [6] works. Try [5,6,7] or [4,6,7] or [5,6,8] or [4,6,8]. At height 0.00 in, size-range candidates (width = circumference/n): 10 columns: ~5.7 in piece width. These local estimates do not certify whole-profile feasibility.");
+        "6 only is not possible at ±15 %: the circumference changes, so it needs about 2 five-and-seven-sided pairs. With size variation of at least ±25 %, [6] works. Native C2 supports [6] with size variation ≥ 22% (whole-percent grid); C3/C4 verification still required. Try [5,6,7] or [4,6,7] or [5,6,8] or [4,6,8]. At height 0.00 in, size-range candidates (width = circumference/n): 9 columns: ~6.3 in piece width; 10 columns: ~5.7 in piece width; 11 columns: ~5.1 in piece width. These local estimates do not certify whole-profile feasibility.");
     i.params.size_variation = 20.0 / 100.0;
     assert!(!check(&i).feasible);
     i.params.size_variation = 25.0 / 100.0;
@@ -187,7 +187,7 @@ fn reference_cylinder_uses_size_band_only_and_keeps_widths() {
     .unwrap();
     let expected = check(&i);
     assert!(expected.feasible);
-    assert_eq!(expected.columns, [8]);
+    assert_eq!(expected.columns, [9]);
     for depth in [0.001, 0.5, 0.75, 2.0] {
         i.params.depth = depth;
         assert_eq!(check(&i), expected);
@@ -233,8 +233,14 @@ fn depth_warning_is_inclusive_advisory_and_deterministic() {
 }
 
 #[test]
-fn default_depth_warning_reaches_generation_messages_without_refusal() {
-    let i = input("cylinder");
+fn out_of_range_depth_warning_reaches_generation_messages_without_refusal() {
+    let mut i = input("cylinder");
+    // The shared reference depth is in range; make the advisory case explicit
+    // rather than depending on a historically out-of-range fixture value.
+    let quiet = vstone_core::feasibility_only(&i);
+    assert_eq!(quiet.status, "ok");
+    assert!(!quiet.message.contains("Warning:"));
+    i.params.depth = 2.0;
     let surface = Surface::from_profile(&i.surface.profile).unwrap();
     let f = check(&i);
     assert!(f.feasible);
@@ -244,12 +250,13 @@ fn default_depth_warning_reaches_generation_messages_without_refusal() {
     assert_eq!(out.status, "ok");
     assert_eq!(out.feasibility, f);
     assert!(out.message.contains("Warning: depth 2 in"));
+    assert_eq!(out.feasibility, quiet.feasibility);
 }
 
 #[test]
 fn size_band_empty_intervals_still_reject_and_advise_variation() {
     let mut i = input("cylinder");
-    i.params.target_size = 6.5;
+    i.params.target_size = 6.65;
     i.params.size_variation = 0.05;
     let f = check(&i);
     assert!(!f.feasible);
@@ -259,7 +266,7 @@ fn size_band_empty_intervals_still_reject_and_advise_variation() {
     assert_eq!(vstone_core::feasibility_only(&i).status, "infeasible");
     assert_eq!(vstone_core::generate(&i).status, "infeasible");
     i.params.size_variation = 0.10;
-    assert_eq!(check(&i).columns, [8]);
+    assert_eq!(check(&i).columns, [9]);
     assert!(check(&i).feasible);
 }
 
@@ -273,4 +280,30 @@ fn configured_depth_reaches_public_feasibility_message() {
     let quiet = vstone_core::feasibility_only(&i);
     assert!(!quiet.message.contains("Warning:"));
     assert_eq!(out.feasibility, quiet.feasibility);
+}
+
+#[test]
+fn constant_wrap_absorbs_curvature_and_hex_advice_is_native_verified() {
+    for (profile, variation) in [("cone_9_to_6", 0.25), ("vase_bulge", 0.30)] {
+        let mut i = input(profile);
+        i.params.target_size = 6.5;
+        i.params.allowed_sides = vec![6];
+        i.params.size_variation = variation;
+        let surface = Surface::from_profile(&i.surface.profile).unwrap();
+        let f = feasibility::check(&surface, &i.params);
+        assert!(f.feasible, "{profile}: {f:?}");
+        assert_eq!(f.column_changes, 0);
+        assert_eq!(f.pentagons_needed, 0);
+        assert_eq!(f.heptagons_needed, 0);
+        i.params.size_variation = 0.05;
+        let failed = feasibility::check(&surface, &i.params);
+        assert!(!failed.feasible);
+        let text = feasibility::message(&surface, &failed, &i.params);
+        let advice = text.split("[6] with size variation ≥ ").nth(1).unwrap();
+        let percent: f64 = advice.split('%').next().unwrap().parse().unwrap();
+        i.params.size_variation = percent / 100.;
+        assert!(feasibility::check(&surface, &i.params).feasible);
+        i.params.size_variation -= 0.01;
+        assert!(!feasibility::check(&surface, &i.params).feasible);
+    }
 }

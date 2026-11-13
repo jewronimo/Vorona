@@ -161,10 +161,10 @@ def test_a05_defaults_and_core_keys(tmp_path):
     path = tmp_path / "minimal.toml"
     path.write_text('[input]\nprofile = "profile.step"\n')
     for config in (load_config(path), load_config(EXAMPLE)):
-        assert config.depth == 2.0
-        assert config.max_corner_angle_deg == 225.0
+        assert config.depth == 1.5
+        assert config.max_corner_angle_deg == 230.0
         assert config.thickness == 0.375
         params = build_core_input(config, [[9., 0.], [9., 60.]])["params"]
-        assert params["depth"] == 2.0
-        assert params["max_corner_angle_deg"] == 225.0
+        assert params["depth"] == 1.5
+        assert params["max_corner_angle_deg"] == 230.0
         assert "surface_tolerance" not in params

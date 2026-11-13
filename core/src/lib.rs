@@ -1,6 +1,8 @@
 //! Deterministic stone geometry core. All lengths are inches.
+pub mod depth;
 pub mod feasibility;
 pub mod model;
+pub mod planes;
 #[cfg(feature = "python")]
 mod py;
 pub mod seeds;

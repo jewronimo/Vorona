@@ -28,10 +28,24 @@ pub fn extended_v(surface: &Surface, s: f64) -> f64 {
     }
 }
 
-/// Construct seeded rows using C2's minimum-change even column schedule.
+/// Construct seeded rows using C2's minimum-change integer column schedule.
 /// Rejects invalid parameters, infeasibility, unsupported rims, or excessive site counts.
 /// The caller owns the sole ChaCha8 stream for both seeding and subsequent repair.
 pub fn place(surface: &Surface, p: &Params, rng: &mut ChaCha8Rng) -> Result<Vec<Seed>, String> {
+    place_with_jitter(surface, p, rng, 0.1)
+}
+
+/// Diagnostic placement with an explicit nonnegative local-spacing jitter cap.
+/// Units and failure conditions are the same as `place`; invalid caps fail.
+pub fn place_with_jitter(
+    surface: &Surface,
+    p: &Params,
+    rng: &mut ChaCha8Rng,
+    cap: f64,
+) -> Result<Vec<Seed>, String> {
+    if !cap.is_finite() || cap < 0. {
+        return Err("invalid jitter cap".into());
+    }
     if !p.depth.is_finite()
         || p.depth <= 0.0
         || !p.randomness.is_finite()
@@ -50,38 +64,8 @@ pub fn place(surface: &Surface, p: &Params, rng: &mut ChaCha8Rng) -> Result<Vec<
         return Err("cannot seed an infeasible profile".into());
     }
     let steps = (surface.length() / 0.05).ceil() as usize;
-    let intervals: Vec<_> = (0..=steps)
-        .map(|i| {
-            let r = surface.r(surface.length() * i as f64 / steps as f64);
-            let lo = (TAU * r / (p.target_size * (1.0 + p.size_variation)) / 2.0 - 1e-12)
-                .ceil()
-                .max(1.0) as usize;
-            let hi = (TAU * r / (p.target_size * (1.0 - p.size_variation)) / 2.0 + 1e-12).floor()
-                as usize;
-            (lo, hi.max(lo))
-        })
-        .collect();
-    let mut optimum = intervals[0];
-    for &(lo, hi) in &intervals[1..] {
-        optimum = if lo > optimum.1 {
-            (lo, lo)
-        } else if hi < optimum.0 {
-            (hi, hi)
-        } else {
-            (lo.max(optimum.0), hi.min(optimum.1))
-        };
-    }
-    let mut n = optimum.0;
-    let mut columns = Vec::new();
-    for &(lo, hi) in intervals.iter().rev() {
-        n = n.clamp(lo, hi);
-        columns.push(2 * n);
-    }
-    columns.reverse();
-    // C2 fixes the compressed column sequence, but its earliest-switch tie is
-    // unsuitable for constructing defects: it can put one member on the rim.
-    // Switch in the middle of each overlap of the two admissible intervals.
     let sequence = feasibility::check(surface, p).columns;
+    let mut columns = vec![sequence[0] as usize; steps + 1];
     let mut cursor = 0;
     for (i, value) in columns.iter_mut().enumerate() {
         let r = surface.r(surface.length() * i as f64 / steps as f64);
@@ -97,34 +81,48 @@ pub fn place(surface: &Surface, p: &Params, rng: &mut ChaCha8Rng) -> Result<Vec<
         }
         *value = sequence[cursor] as usize;
     }
-    // Row heights track the local lattice scale; no time-dependent stopping.
+    // Integrate rows in the conformal chart, not by forward Euler in arc
+    // length. C2's variable-column schedule remains authoritative: each row
+    // takes the equilateral chart pitch of its local ring. Constant-radius
+    // profiles reduce to exactly the existing cylindrical lattice.
     let mut arcs = vec![0.0];
+    let mut v = 0.0;
+    let end_v = surface.v_of_s(surface.length());
     loop {
         let s = *arcs.last().unwrap();
         let index = ((s / surface.length() * steps as f64).round() as usize).min(steps);
-        let h = 3.0_f64.sqrt() / 2.0 * TAU * surface.r(s) / columns[index] as f64;
-        if s + h >= surface.length() {
+        let dv = 3.0_f64.sqrt() / 2.0 * TAU / columns[index] as f64;
+        if v + dv >= end_v {
             break;
         }
         if arcs.len() >= 10_000 {
             return Err("seed row cap exceeded".into());
         }
-        arcs.push(s + h);
+        v += dv;
+        arcs.push(surface.s_of_v(v));
     }
     if arcs.len() < 2 {
         return Err("profile too short for two lattice rows".into());
     }
-    // Spread the residual uniformly so the top rim does not leave a tiny final row.
+    // Extend the SAME chart pitch at each end. Do not stretch the last
+    // ordinary row to the physical rim; support planes need two full rows.
+    let bottom_dv = 3.0_f64.sqrt() / 2.0 * TAU / columns[0] as f64;
     let last = *arcs.last().unwrap();
-    for s in &mut arcs {
-        *s *= surface.length() / last;
-    }
-    if p.rims.bottom == "level" {
-        arcs.insert(0, -(arcs[1] - arcs[0]));
-    }
-    if p.rims.top == "level" {
-        let len = arcs.len();
-        arcs.push(arcs[len - 1] + arcs[len - 1] - arcs[len - 2]);
+    let index = ((last / surface.length() * steps as f64).round() as usize).min(steps);
+    let top_dv = 3.0_f64.sqrt() / 2.0 * TAU / columns[index] as f64;
+    arcs.insert(0, -bottom_dv * surface.r(0.0));
+    arcs.insert(0, -2.0 * bottom_dv * surface.r(0.0));
+    let mut support = 0;
+    let mut k = 1;
+    while support < 2 {
+        let next_v = v + k as f64 * top_dv;
+        arcs.push(if next_v <= end_v {
+            surface.s_of_v(next_v)
+        } else {
+            surface.length() + (next_v - end_v) * surface.r(surface.length())
+        });
+        support += usize::from(next_v > end_v);
+        k += 1;
     }
     let mut seeds = Vec::new();
     for (row, &s) in arcs.iter().enumerate() {
@@ -139,25 +137,23 @@ pub fn place(surface: &Surface, p: &Params, rng: &mut ChaCha8Rng) -> Result<Vec<
         }
         for col in 0..count {
             let pitch = TAU / count as f64;
-            // The requested band bounds organic displacement; randomness never
-            // buys permission to violate spacing. Rim angular perturbations
-            // have more freedom (rim edges are exempt), but are still capped.
-            let rim = s <= 0.0 || s >= surface.length();
-            let nominal_ratio = pitch * surface.r(s) / p.target_size;
-            let available = (p.size_variation - (nominal_ratio - 1.0).abs()).max(0.0);
-            let amplitude = p.randomness
-                * if rim {
-                    p.size_variation * 1.5
-                } else {
-                    available * 0.9
-                };
+            // Each component is bounded by ±cap of the corresponding LOCAL
+            // row spacing, never the global target size or size-variation band.
+            let local_s = if row + 1 < arcs.len() {
+                arcs[row + 1] - s
+            } else {
+                s - arcs[row - 1]
+            };
+            let amplitude = p.randomness * cap;
             let du = rng.gen_range(-1.0..1.0) * pitch * amplitude;
-            let ds = rng.gen_range(-1.0..1.0) * p.target_size * amplitude;
+            let ds = rng.gen_range(-1.0..1.0) * local_s * amplitude;
             let auxiliary = s < 0.0 || s > surface.length();
-            let moved = if auxiliary || row == 0 || row + 1 == arcs.len() {
+            let moved = if auxiliary || s <= 0.0 || s >= surface.length() {
                 s
             } else {
-                s + ds
+                // Exact pitch may leave the last ordinary row near the top.
+                // Do not let jitter cross the rim and evade spacing checks.
+                (s + ds).clamp(1e-8, surface.length() - 1e-8)
             };
             seeds.push(Seed {
                 u: ((col as f64 + 0.5 * (row % 2) as f64) * pitch + du).rem_euclid(TAU),
@@ -167,23 +163,6 @@ pub fn place(surface: &Surface, p: &Params, rng: &mut ChaCha8Rng) -> Result<Vec<
                 auxiliary,
                 depth: symmetric_depth(row, p.depth),
             });
-        }
-    }
-    // Independent jitter can remain inside one Delaunay chamber. Coherent
-    // row rotations choose chambers too, without enlarging that jitter. A
-    // near-pitch rotation leaves a small metric shear but moves sites through
-    // actual flips; site indices/column identities are never permuted.
-    if p.randomness > 0.5 && sequence.len() == 1 && arcs.len() > 3 {
-        let pitch = TAU / sequence[0] as f64;
-        for row in 0..arcs.len() {
-            let phase = if rng.gen_bool(0.5) {
-                (0.85 + rng.gen_range(0.0..0.1)) * (2.0 * p.randomness - 1.0)
-            } else {
-                0.0
-            };
-            for site in seeds.iter_mut().filter(|x| x.row == row) {
-                site.u = (site.u + phase * pitch).rem_euclid(TAU);
-            }
         }
     }
     // Construct each count-change dislocation before generic relaxation. A
@@ -291,19 +270,11 @@ pub fn symmetric_depth(row: usize, depth: f64) -> f64 {
     (row % 3) as f64 * 0.5 * depth
 }
 
-/// Finalize inward offsets in inches after ALL positional repair draws.
-/// Uses the caller's sole seeded stream in stable tile order. Placement carries
-/// symmetric provisional depths so triangulation and repair never consume relief
-/// draws or change their pre-A05 random-stream results.
-pub(crate) fn assign_depths(sites: &mut [Seed], p: &Params, rng: &mut ChaCha8Rng) {
+/// Assign row-symmetric inward offsets in inches, independent of seed/randomness.
+/// No random draws: randomness controls positions only.
+pub(crate) fn assign_depths(sites: &mut [Seed], p: &Params, _rng: &mut ChaCha8Rng) {
     for site in sites {
-        let symmetric = symmetric_depth(site.row, p.depth);
-        site.depth = if p.randomness == 0.0 {
-            symmetric
-        } else {
-            let uniform = rng.gen_range(0.0..=1.0) * p.depth;
-            ((1.0 - p.randomness) * symmetric + p.randomness * uniform).clamp(0.0, p.depth)
-        };
+        site.depth = symmetric_depth(site.row, p.depth);
     }
 }
 
@@ -317,8 +288,10 @@ pub fn rng(seed: u64) -> ChaCha8Rng {
 /// Auxiliary rows retain the same endpoint-cylinder extension as extended_v.
 pub fn spacing(surface: &Surface, a: &Seed, b: &Seed) -> f64 {
     let du = (b.u - a.u + TAU / 2.0).rem_euclid(TAU) - TAU / 2.0;
-    let dv = b.v - a.v;
-    let mean_radius = if dv.abs() > 1e-12 {
+    // Near-equal arc heights otherwise divide two cancellation-damaged
+    // differences, injecting metric/gradient noise at precisely the repair inset.
+    let dv = surface.conformal_delta(a.s, b.s);
+    let mean_radius = if a.s != b.s {
         (b.s - a.s) / dv
     } else {
         surface.r((a.s + b.s) * 0.5)
@@ -331,7 +304,7 @@ mod depth_tests {
     use super::*;
 
     #[test]
-    fn a05_blend_uses_exact_uniform_draws_after_the_symmetric_pattern() {
+    fn a05_depth_is_row_symmetric_and_consumes_no_random_draws() {
         let input: crate::model::CoreInput = serde_json::from_str(include_str!(
             "../../tests/fixtures/core_input_cylinder.json"
         ))
@@ -354,11 +327,7 @@ mod depth_tests {
             let mut expected = actual.clone();
             assign_depths(&mut sites, &p, &mut actual);
             for site in sites {
-                let uniform = expected.gen_range(0.0..=1.0) * p.depth;
-                assert_eq!(
-                    site.depth,
-                    (1.0 - randomness) * symmetric_depth(site.row, p.depth) + randomness * uniform
-                );
+                assert_eq!(site.depth, symmetric_depth(site.row, p.depth));
             }
             assert_eq!(actual.gen::<u64>(), expected.gen::<u64>());
         }

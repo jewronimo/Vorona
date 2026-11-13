@@ -372,3 +372,199 @@ where every interior tile's side count is in the allowed set.
 - Exact shared-stream blending ->
   `seeds::depth_tests::a05_blend_uses_exact_uniform_draws_after_the_symmetric_pattern`
   -> PASS. Implementation remains unmerged for owner review.
+
+
+### Exact-reference padding/repair follow-up — 2026-11-12 (UNVERIFIED)
+
+- Same dirty C4-depth worktree retained. Two fixed-pitch support rows at each
+  open end for BOTH rim styles, explicit auxiliary flags; physical rim seeds
+  retain exact arc position under jitter (not merely triangulation-hull rows).
+- Tight-band repair now differentiates the actual squared edge AND incident
+  average residual with fixed-chamber central differences. This includes
+  neighboring average derivatives missing from endpoint-only springs. Every
+  trial is retriangulated; legal bands, degree sets and defect quotas unchanged.
+- Fixed-budget row-phase chamber proposals plus multiscale single-site proposals;
+  integer-penalty-improving trials get bounded metric cleanup before comparison.
+  Strict decreasing score acceptance retained; cap 512 outer / 96 cleanup steps.
+  Same seeded ChaCha stream, stable BTree row order, no parallelism/dependencies.
+- `exact_reference_full_topology_matrix`: cylinder [6], cone/vase [5,6,7],
+  target 6.5, variation .15, r=0/.5/1, seeds1..10 (90 cases). Asserts build,
+  manifold, exact edge/average bands, allowed degrees, >=2 auxiliary rows each
+  side, exact repeat topology. `build` still checks the original defect budget.
+- No tests/builds/checks/diagnostics executed. This is implemented repair, NOT
+  evidence the full matrix passes; parent must execute and retain failures.
+
+
+### Reference cylinder metric-resolution follow-up — 2026-11-12 (UNVERIFIED)
+
+- Read parent `runs/logs/C3-C4-rim-matrix.jsonl`: half-random cylinder seeds
+  1–8 all hit the cap with zero defect budget, degree-six violations and small
+  positive spacing residuals (e.g. seed 1: 7.739694810859e-6). This is failure,
+  not acceptance. Preserved all dirty changes; no checks/builds/diagnostics run.
+- Identified a resolution floor in metric descent: eight normalized line-search
+  steps stop at target/640 = 0.01015625 inches for target6.5, overshooting tiny
+  active band violations. Replaced with fixed 40-step halving backtracking and
+  sufficient decrease; finite-difference probes reduced below the optimization
+  inset to avoid straddling inactive band hinges. Acceptance bands, tolerance,
+  degree requirements and physical-rim exclusions unchanged.
+- New `reference_cylinder_half_randomness_cleans_small_spacing_residuals` uses
+  the exact sampled matrix fixture (not the two-point profile helper), target6.5,
+  variation.15, depth1.5, maxangle230, [6], randomness.5, seeds1–10. It asserts
+  successful repair, initial nonzero residual reduction, manifoldness, unchanged
+  spacing oracle and interior degree6. Full exact matrix test now also retains
+  the sampled cylinder fixture, matching c4_matrix rather than replacing it.
+- Parent must rebuild and run the focused regression, full topology tests,
+  matrix and official checks. This source-only fix is not measured convergence
+  evidence. No commits/merges/pushes; formatting only in Vorona-dev.
+
+### Reference v2 cancellation repair — 2026-11-12 (UNVERIFIED)
+
+- Preserved dirty C4-depth worktree, no commit/merge. Applied container skill;
+  only container cargo fmt, no builds/tests/diagnostic runs. Parent verifies.
+- Inspected all nine completed v2 JSONL records available at final inspection:
+  cylinder r=.5 seeds 1/4/5/7 hit cap512, defect budget0, degree6 throughout.
+  Residuals respectively 1.41697e-15, 8.04287e-15, 6.56058e-10, 1.77915e-7.
+  Seed1's in-band edge extrema do NOT prove tile averages in band: acceptance
+  and residual both include averages over ALL incident neighbors, including rims.
+- Found numerical instability in the actual chart metric: ds/(v_b-v_a) loses
+  significant digits for nearly same-height sites far from chart origin. Arc
+  finite differences at 6.5e-8 inches can thus measure metric cancellation noise
+  instead of the band gradient. Surface::conformal_delta now integrates local
+  endpoint segments and full intervening chart intervals; same mathematical
+  chart path, endpoint-radius continuation and geometric tolerances unchanged.
+  spacing uses that stable signed separation, with exact equal-height limit.
+- Probe size now shrinks with optimization residual to avoid differentiating a
+  smoothed hinge near convergence; fixed backtracking40/outer512/cleanup96 caps,
+  inset1e-7, final acceptance epsilon1e-9 and all contract bounds unchanged.
+- Added analytic-cylinder near-horizontal regression at arc30/50/60/61, with
+  separations0 through1e-12..1e-2, both endpoint orders; 1e-12-inch error limit.
+  Full exact-reference90-case regression now aggregates build errors instead
+  of stopping on the first cap, asserts90 attempts, retains all independent
+  manifold/spacing/degree/support/determinism assertions on successful builds.
+- Parent should rebuild v3; run near_horizontal_spacing_has_no_absolute_chart_cancellation,
+  reference_cylinder_half_randomness_cleans_small_spacing_residuals, exact90,
+  official checks and matrix. No convergence claim until those checks pass.
+
+### Reference v3 finite feasibility-gap repair — 2026-11-12 (UNVERIFIED)
+
+- Read v3 topology failure: stable-chart regression passes, but half-random
+  cylinder seed1 still fails after512 accepted moves, original residual
+  2.111213397185e-14, edge extrema1.045600915/1.149999953, bad81/83/87 degree6.
+  This disproves the previous cancellation fix as a sufficient convergence fix.
+  Acceptance and residual are consistent: rim-incident averages can fail even
+  when every interior-interior edge is legal. No rim-average exemption added.
+- Remaining conditioning issue: old search inset m=1e-7 gives no finite-width
+  useful feasibility gap. For each nominal constraint excess e, search penalizes
+  max(e+m,0)^2; only total search residual <m^2=1e-14 certifies EVERY nominal
+  constraint is satisfied. Steepest descent approaches that boundary while
+  spending the fixed budget resolving other active averages/edges.
+- Set a shared optimization-only margin m=0.01*size_variation (m=.0015 at
+  reference inputs). Thus search residual <2.25e-6 certifies nominal feasibility,
+  rather than requiring <1e-14. All metric, spring and flip-cleanup proposals
+  use the SAME margin. This is a strictly inward search target, NOT permission
+  to violate any original limit. Original residual and final acceptance retain
+  original bands, degree exceptions and epsilon1e-9. Caps unchanged512/96/40.
+  Build still accepts any nominally valid candidate before further tightening.
+- New private unit regression constructs a six-neighbor local star with physical
+  rim neighbors: NO checked interior-interior edges, but average ratio exceeds
+  nominal1.15 by5e-8. Verifies failure despite legal edge extrema, substantial
+  inward descent, and strict nominal feasibility once the margin certificate
+  is met. Synthetic star tests objective only; manifold tests remain real builds.
+- Last allowed move now receives terminal acceptance/report refresh, previously
+  omitted after pass512. No additional repair proposal/pass. Failure diagnostic
+  now includes max average excess and optimized residual, not only edge extrema.
+- At final read v3 matrix had zero completed records; official check was still
+  in planes tests (no additional failures available). Only container cargo fmt;
+  no builds/tests/diagnostics/commits/merges. Parent must run new unit regression,
+  focused half-random10-seed regression, exact90 matrix and official checks.
+  This establishes a mathematical feasibility gap, not measured convergence;
+  no heuristic solver success is claimed before parent verification.
+
+### Integer lattice / identical-native-input comparison handoff — 2026-11-12 (UNMEASURED)
+
+- Preserved ALL inherited dirty edits. Applied container skill; machine reported
+  Darwin Spookys-MacBook-Pro-2.local 25.6.0 arm64; docker ps included Vorona-dev.
+  Only container cargo fmt executed; no check/build/test/benchmark/solver run.
+- C2 now allows every integer count; nearest circumference/target breaks the
+  minimum-change schedule tie (reference cylinder 9). C3 consumes that schedule,
+  never stretches row arcs, and continues the exact last pitch through >=2
+  support rows beyond each rim. Added explicit nine-column/pitch/padding test.
+- Extracted shared native Problem construction, not a second target generator.
+  c4_native_export emits sites/depths, complete triangle/array ordering, both
+  tangent axes (do NOT assume native tangent signs equal prototype signs),
+  native LS initialization, fitted tilts/corners, whole selection and evaluator.
+  `legacy` argument reconstructs the preceding 8-column stretched symmetric
+  cylinder, then uses exactly the same native fit/export code.
+- A05_native_compare.py applies the prototype planes/intersections/residual and
+  SciPy least_squares(max_nfev=300) to the EXPORTED arrays and EXPORTED initial
+  vector: no Delaunay, no reseeding, no recomputed targets. Independently compares
+  the native LS start against numpy lstsq. Writes objective/target RMS, dynamic
+  and frozen-native whole-tile unsigned-angle/edge ranges, and every corner's
+  native/reference coordinate error and start/native/reference target error.
+  Native corner reconstruction error detects ordering/axis parameter mistakes.
+  This enables diagnosis, but DOES NOT establish a measured fit-bug cause/fix.
+  Do not blame lattice alone or claim parity before executing this gate.
+- C3 performance: finite differences formerly reevaluated the entire graph for
+  each coordinate. They now evaluate ONLY incident hinges and this site's and
+  neighbors' averages: all other terms cancel identically. Full trial score,
+  retriangulation, caps and terminal limits unchanged. Added local/global
+  objective-difference test. Runtime improvement remains unmeasured.
+- Actual previous v4 matrix file contained 42 records: cylinder23, cone19,
+  ending cone depth1.5 r1 seed8. Thus vase was NOT removed from source; the run
+  had not reached it. Existing processes untouched. Parent coordinates settlement
+  before new execution. Current full matrix explicitly includes ALL r0/.5/1
+  seeds1..10 at depth1.5 for cylinder/cone/vase: 90 acceptance + 6 symmetric
+  depth1/2 report records = 96 (not69). Optional positional profile argument
+  `vase_bulge` enables an immediate 32-record vase diagnostic without weakening
+  the eventual full matrix. Defaults1.5/230 and never-worse polish unchanged.
+
+Parent commands (host, from repository root; wait for existing v4 jobs first):
+
+```sh
+docker exec -w /src/runs/worktrees/C4-depth/core Vorona-dev cargo run --release --example c4_native_export > runs/logs/C4-native-nine.json 2> runs/logs/C4-native-nine.stderr.log
+docker exec -w /src/runs/worktrees/C4-depth/core Vorona-dev cargo run --release --example c4_native_export -- legacy > runs/logs/C4-native-legacy-eight.json 2> runs/logs/C4-native-legacy-eight.stderr.log
+docker exec -w /src/runs/worktrees/C4-depth Vorona-dev python docs/prototypes/A05_native_compare.py /src/runs/logs/C4-native-nine.json /src/runs/logs/C4-native-nine-comparison.json > runs/logs/C4-native-nine-comparison.log
+docker exec -w /src/runs/worktrees/C4-depth Vorona-dev python docs/prototypes/A05_native_compare.py /src/runs/logs/C4-native-legacy-eight.json /src/runs/logs/C4-native-legacy-eight-comparison.json > runs/logs/C4-native-legacy-eight-comparison.log
+docker exec -w /src/runs/worktrees/C4-depth/core Vorona-dev cargo test --lib local_probe_matches_global_objective_difference
+docker exec -w /src/runs/worktrees/C4-depth/core Vorona-dev cargo test --test topology reference_lattice_has_nine_columns_without_row_stretching
+docker exec -w /src/runs/worktrees/C4-depth/core Vorona-dev cargo test --test feasibility --test planes --test contract
+docker exec -w /src/runs/worktrees/C4-depth/core Vorona-dev bash -c 'time cargo test --test topology exact_reference_full_topology_matrix -- --nocapture' > runs/logs/C3-nine-warm-timing.log 2>&1
+docker exec -w /src/runs/worktrees/C4-depth/core Vorona-dev cargo clippy --all-targets -- -D warnings
+docker exec -w /src/runs/worktrees/C4-depth/core Vorona-dev cargo run --release --example c4_matrix -- vase_bulge > runs/logs/C4-nine-vase.jsonl 2> runs/logs/C4-nine-vase.stderr.log
+docker exec -w /src/runs/worktrees/C4-depth/core Vorona-dev cargo run --release --example c4_matrix > runs/logs/C4-nine-full-96.jsonl 2> runs/logs/C4-nine-full-96.stderr.log
+```
+
+For official worktree dev-check, create a supplemental Makefile overriding ONLY
+`dev-check`'s docker exec working directory to `/src/runs/worktrees/C4-depth`,
+keeping `dev-up`, `pip install --no-deps -e . && make check` intact, then run
+`make -f Makefile -f /tmp/vorona-c4-nine-check.mk dev-check` and save raw output.
+This is needed because inherited Makefile dev-check has no -w and otherwise
+checks /src, NOT this worktree. No numerical acceptance or checklist completion
+is claimed. Parent owns execution, measured diagnosis and any ensuing solver fix.
+
+
+### Position-only adjacency regression correction — 2026-11-12 (parent checks pending)
+
+- Owner's latest bounded ±10% LOCAL position-only jitter supersedes the old
+  full-randomness pairwise graph-uniqueness experiment. Delaunay connectivity
+  is piecewise constant under position changes: a small perturbation may remain
+  in the same triangulation chamber. Repeated seed2 adjacency alone is therefore
+  NOT evidence of failed positional randomness; no flip is required by this rule.
+- Replaced `seeds_one_to_five_change_adjacency_not_just_positions` with
+  `seeds_one_to_five_change_positions_with_valid_geometry`: still requires
+  pairwise different final sites at randomness .5/1, independent physical
+  edge/average spacing acceptance, and now explicitly checks manifold geometry.
+  No geometric acceptance, degree/defect tests, or C4 strict limits were relaxed.
+- Added independent cylinder placement component-cap/depth oracle covering
+  randomness 0/.5/1 and seeds1..5, fixed rim heights, and zero-randomness site
+  independence. Added byte-identical repaired topology seed1..5 regression at
+  randomness0 with spacing/manifold checks (full planes regression remains).
+- ONLY tests and task notes changed for this correction. Production source is
+  untouched: running isolated position-only matrix remains valid for the same
+  production sources/binary. No restart/rebuild needed for this correction.
+  Container fmt only; no tests/builds/diagnostics/commits/merges by child.
+- Parent: in Vorona-dev, cwd `/src/runs/worktrees/C4-depth/core`, run
+  `cargo test --test topology` then the existing official worktree-selecting
+  `make dev-check`; preserve raw logs. Full end-to-end seed-independent plane
+  gate remains `cargo test --release --test planes
+  symmetric_geometry_is_seed_independent_end_to_end -- --ignored --nocapture`.

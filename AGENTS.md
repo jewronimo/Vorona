@@ -58,7 +58,21 @@ STEP headers get a fixed timestamp (`1970-01-01T00:00:00`) so files are reproduc
 3. Write or update tests first when the card lists acceptance tests.
 4. Keep each commit small and runnable. Message: `<card-id>: <what>`.
 5. Run `make check` (Rust fmt + clippy + tests, Python ruff + pytest). It must pass.
-6. Tick the card's checklist, add `## Agent notes` if anything deviated, open a PR.
+6. Before geometry merges, run **both** worktree-selected `make dev-check` and
+   `make acceptance` on the host (they execute in `Vorona-dev`). Acceptance runs
+   release ignored tests and the complete 96-case production matrix on one CPU:
+   symmetric 60s, random 90s. Preserve raw logs and inspect all failures; ordinary
+   `make check` skips these numerical gates. `make acceptance` logs under the
+   current worktree `runs/logs/acceptance-<UTC>-<pid>/` with isolated target path.
+   Its zero exit allows ONLY the owner-accepted cylinder depth1.5/r0.5/seed3
+   90s timeout, explicitly labeled incomplete, never passed. Any other acceptance
+   failure, timeout or infrastructure error blocks merge; ignored-test failures
+   remain failures, never waived by matrix success. Three superseded direct-fit
+   research tests are explicitly feature-gated behind `c4-experiments` (see C4
+   housekeeping evidence); default ignored gates retain the other regressions,
+   and the full production-selector matrix remains mandatory. Report-only depth1/2
+   geometric failures must be reported separately.
+7. Tick the card's checklist, add `## Agent notes` if anything deviated, open a PR.
 
 No new dependency unless the card lists it, or you add it under `## Agent notes` with a reason.
 

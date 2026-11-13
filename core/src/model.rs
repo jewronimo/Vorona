@@ -148,8 +148,8 @@ pub struct Provenance {
 }
 
 fn default_depth() -> f64 {
-    2.0
+    1.5
 }
 fn default_max_corner_angle() -> f64 {
-    225.0
+    230.0
 }

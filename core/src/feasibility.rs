@@ -66,7 +66,7 @@ fn estimate(surface: &Surface, p: &Params) -> Feasibility {
     for i in 0..=steps {
         let s = surface.length() * i as f64 / steps as f64;
         let r = surface.r(s);
-        // Even wraps avoid a helical seam. Units below are pairs of columns.
+        // Half-offset rows close periodically for odd and even column counts.
         let (low, high) = size_interval(r, p);
         possible &= low <= high;
         intervals.push((low, high.max(low)));
@@ -103,11 +103,12 @@ fn estimate(surface: &Surface, p: &Params) -> Feasibility {
             (lo.max(optimum.0), hi.min(optimum.1))
         };
     }
-    let mut n = optimum.0;
+    let mut n = ((TAU * surface.r(surface.length()) / p.target_size).round() as u32)
+        .clamp(optimum.0, optimum.1);
     let mut sequence = Vec::new();
     for &(lo, hi) in intervals.iter().rev() {
         n = n.clamp(lo, hi);
-        sequence.push(2 * n);
+        sequence.push(n);
     }
     sequence.reverse();
     sequence.dedup();
@@ -120,6 +121,16 @@ fn estimate(surface: &Surface, p: &Params) -> Feasibility {
         f.columns = sequence;
     } else {
         f.column_changes = 0;
+    }
+    // Integrated curvature is not a mandatory defect quota on an open chart:
+    // a single admissible periodic wrap can absorb taper/bulge through the
+    // requested width band. C3 still validates actual spacing and topology.
+    // Keep curvature/dislocation estimates when no constant wrap exists.
+    if possible && f.column_changes == 0 {
+        f.pentagons_needed = 0;
+        f.heptagons_needed = 0;
+        positive = 0.;
+        negative = 0.;
     }
     let lower = p.allowed_sides.iter().copied().min().unwrap_or(9) as f64;
     let upper = p.allowed_sides.iter().copied().max().unwrap_or(4) as f64;
@@ -139,12 +150,12 @@ fn estimate(surface: &Surface, p: &Params) -> Feasibility {
     f
 }
 
-// Counts are represented in pairs, preserving the existing even-wrap convention.
+// All integer counts are admissible; a half-offset row does not require even wraps.
 fn size_interval(r: f64, p: &Params) -> (u32, u32) {
-    let low = (TAU * r / (p.target_size * (1.0 + p.size_variation)) / 2.0 - 1e-12)
+    let low = (TAU * r / (p.target_size * (1.0 + p.size_variation)) - 1e-12)
         .ceil()
         .max(1.0) as u32;
-    let high = (TAU * r / (p.target_size * (1.0 - p.size_variation)) / 2.0 + 1e-12).floor() as u32;
+    let high = (TAU * r / (p.target_size * (1.0 - p.size_variation)) + 1e-12).floor() as u32;
     (low, high)
 }
 
@@ -223,7 +234,10 @@ fn geometry_message(surface: &Surface, f: &Feasibility, p: &Params) -> String {
         ));
     }
     if reasons.is_empty() {
-        reasons.push("the allowed side counts cannot balance the required average or fit an even column wrap".into());
+        reasons.push(
+            "the allowed side counts cannot balance the required average or fit a column wrap"
+                .into(),
+        );
     }
     let mut text = format!(
         "{label} is not possible at ±{} %: {}.",
@@ -247,6 +261,23 @@ fn geometry_message(surface: &Surface, f: &Feasibility, p: &Params) -> String {
             break;
         }
     }
+    // Native, verified hex-only alternative on a deterministic whole-percent
+    // grid; this advises only and never overrides the caller's parameters.
+    let samples = (surface.length() / STEP).ceil() as usize;
+    let changing_radius = (0..=samples).any(|i| {
+        (surface.r(surface.length() * i as f64 / samples as f64) - surface.r(0.)).abs() > 1e-9
+    });
+    if changing_radius {
+        let mut hex = p.clone();
+        hex.allowed_sides = vec![6];
+        for percent in 5..=50 {
+            hex.size_variation = f64::from(percent) / 100.;
+            if estimate(surface, &hex).feasible {
+                text.push_str(&format!(" Native C2 supports [6] with size variation ≥ {percent}% (whole-percent grid); C3/C4 verification still required."));
+                break;
+            }
+        }
+    }
     if !f.suggestions.is_empty() {
         text.push_str(&format!(
             " Try {}.",
@@ -266,8 +297,7 @@ fn column_candidates(surface: &Surface, p: &Params) -> String {
     let r = surface.r(0.0);
     let (low, high) = size_interval(r, p);
     let mut entries = Vec::new();
-    for pairs in low..=high.min(low.saturating_add(15)) {
-        let n = 2 * pairs;
+    for n in low..=high.min(low.saturating_add(15)) {
         entries.push(format!(
             "{n} columns: ~{:.1} in piece width",
             TAU * r / f64::from(n)

@@ -252,8 +252,8 @@ fn depth_and_reflex_angle_contract_defaults_and_ranges() {
         .remove("max_corner_angle_deg");
     assert!(validator.is_valid(&raw));
     let defaults: CoreInput = serde_json::from_value(raw.clone()).unwrap();
-    assert_eq!(defaults.params.depth, 2.0);
-    assert_eq!(defaults.params.max_corner_angle_deg, 225.0);
+    assert_eq!(defaults.params.depth, 1.5);
+    assert_eq!(defaults.params.max_corner_angle_deg, 230.0);
     for (key, good, bad) in [
         ("depth", vec![0.001, 2.0, 100.0], vec![-1.0, 0.0]),
         (
