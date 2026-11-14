@@ -413,6 +413,17 @@
             "minItems": 2,
             "maxItems": 2
           }
+        },
+        "seed_depth": {
+          "type": "number",
+          "minimum": 0
+        },
+        "max_corner_distance": {
+          "type": "number"
+        },
+        "reflex_corners": {
+          "type": "integer",
+          "minimum": 0
         }
       },
       "required": [

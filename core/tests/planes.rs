@@ -430,7 +430,9 @@ mod accepted_conformal_production {
     #[test]
     #[ignore = "release numerical gate: all four accepted analytic vase cases"]
     fn all_four_accepted_vases_use_guarded_production_polish() {
-        for (n, depth, count) in [(8, 2.5, 39), (10, 1.5, 80), (10, 2., 80), (10, 2.5, 80)] {
+        // Integer seam ownership restores nine formerly omitted measured tiles (39 -> 48).
+        // The other three frozen counts are audited independently below.
+        for (n, depth, count) in [(8, 2.5, 48), (10, 1.5, 80), (10, 2., 80), (10, 2.5, 80)] {
             let vase = Vase::new();
             let topology = vase.topology(n, depth);
             let mut p = super::input().params;
@@ -450,6 +452,55 @@ mod accepted_conformal_production {
                 }
             }
             eprintln!("production conformal N={n} depth={depth} whole={count} violations={}->{} score={}->{}", run.fit.report.violated.len(), result.report.violated.len(), run.fit.report.limit_violation_sum_sq, result.report.limit_violation_sum_sq);
+        }
+    }
+}
+
+#[test]
+#[ignore = "release targeted cone thickness and closure regression"]
+fn cone_seed9_configured_thickness_requires_valid_inner_edges() {
+    let mut i = input();
+    i.surface.profile = serde_json::from_str(include_str!(
+        "../../tests/fixtures/profiles/cone_9_to_6.json"
+    ))
+    .unwrap();
+    i.params.randomness = 1.;
+    i.params.seed = 9;
+    i.params.size_variation = 0.25;
+    let selected = vstone_core::depth::select(&i);
+    eprintln!("{}", serde_json::to_string(&selected).unwrap());
+    let d = selected
+        .selected_depth
+        .expect("must converge without relaxing limits");
+    let g = selected
+        .attempts
+        .iter()
+        .find(|a| a.depth == d)
+        .unwrap()
+        .optimizer
+        .as_ref()
+        .unwrap()
+        .as_ref()
+        .unwrap();
+    assert!(g.report.violated.is_empty());
+    i.params.depth = d;
+    let surface = Surface::from_profile(&i.surface.profile).unwrap();
+    let a = vstone_core::assembly::assemble(
+        selected.topology.as_ref().unwrap(),
+        g,
+        &surface,
+        &i.params,
+    )
+    .unwrap();
+    vstone_core::closure::certify(&a.pieces, a.rim_heights).unwrap();
+    for p in &a.pieces {
+        for k in 0..p.inner.len() {
+            let j = (k + 1) % p.inner.len();
+            let length = (0..3)
+                .map(|axis| (p.inner[j][axis] - p.inner[k][axis]).powi(2))
+                .sum::<f64>()
+                .sqrt();
+            assert!(length >= vstone_core::tol::MIN_INNER_EDGE * (1. - 1e-7));
         }
     }
 }

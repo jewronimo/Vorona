@@ -39,12 +39,31 @@ fn case(args: &[String]) -> Result<serde_json::Value, String> {
     // The production selector owns C2/C3, candidate order and C4. In particular,
     // do not use the old diagnostic jitter override or an imported prototype fit.
     let selection = depth::select(&input);
-    let passed = selection.selected_depth.is_some();
+    let closure = (|| -> Result<_, String> {
+        let d = selection
+            .selected_depth
+            .ok_or("C4 failed; no selected topology/geometry available for closure")?;
+        let t = selection.topology.as_ref().ok_or("missing topology")?;
+        let g = selection
+            .attempts
+            .iter()
+            .find(|a| a.depth == d)
+            .and_then(|a| a.optimizer.as_ref())
+            .and_then(|g| g.as_ref().ok())
+            .ok_or("missing selected geometry")?;
+        let surface = vstone_core::surface::Surface::from_profile(&input.surface.profile)
+            .map_err(|e| e.to_string())?;
+        let mut p = input.params.clone();
+        p.depth = d;
+        let a = vstone_core::assembly::assemble(t, g, &surface, &p)?;
+        vstone_core::closure::certify(&a.pieces, a.rim_heights)
+    })();
+    let passed = selection.selected_depth.is_some() && closure.is_ok();
     Ok(serde_json::json!({
         "harness": "production-configured-first-v3", "profile": args[0],
-        "params": input.params, "passed": passed,
+        "params": input.params, "passed": passed, "closure": closure,
         "total_seconds": started.elapsed().as_secs_f64(), "selection": selection,
-        "scope": "native C2/C3/C4 only; C5/C6 clipped-piece certification pending"
+        "scope": "native C2/C3/C4 plus mandatory C5 full-band closure; C6 manufacturing certification pending"
     }))
 }
 

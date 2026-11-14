@@ -150,3 +150,18 @@ outer-face centroid at the origin, and the longest edge along +X.
 `usable × usable` square centred on a `size × size` blank. For each piece, try rotations
 0°, 15°, …, 345°, and bottom-left positions on a 0.05 in grid, keeping `nest_gap` clearance;
 take the first fit in that order; else open a new blank. Deterministic by construction.
+
+### Configured-thickness validity guard (C4 → C5)
+
+At the actual configured thickness, the inner face must be simple, preserve
+outer orientation, and retain every corresponding edge direction. The signed
+projection of each inner edge onto its outer edge direction must be at least
+`MIN_INNER_EDGE = 0.001 inch` (one mil; `core/src/tol.rs`). This positive safety
+minimum is separate from the unchanged outer `min_edge` manufacturing setting.
+C4's normalized limit/report tolerance is 1e-7 (1e-10 inch for this minimum);
+C5 uses the same threshold. Production polish begins a smooth restoring penalty
+0.02 inch before collapse; that optimization margin does not change validity.
+These inner-face checks cover complete non-auxiliary fans, including physical
+partials that C5 will clip. Other C4 metrics remain frozen to complete whole
+physical tiles. A collapsed partial must not escape simply because whole-tile
+size/angle measurements exclude it. C5 still validates again after clipping.

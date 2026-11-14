@@ -48,13 +48,26 @@ fn roundtrip_and_schema() {
 }
 #[test]
 fn deterministic_and_errors() {
-    assert_eq!(
-        Sha256::digest(generate_json(INPUT)),
-        Sha256::digest(generate_json(INPUT))
-    );
-    let o: CoreOutput = serde_json::from_str(&generate_json(INPUT)).unwrap();
-    assert_eq!(o.status, "error");
-    assert_eq!(o.message, "not implemented");
+    let first = generate_json(INPUT);
+    let second = generate_json(INPUT);
+    assert_eq!(Sha256::digest(&first), Sha256::digest(&second));
+    let o: CoreOutput = serde_json::from_str(&first).unwrap();
+    assert_eq!(o.status, "failed_validation", "{}", o.message);
+    assert!(!o.pieces.is_empty());
+    let input: CoreInput = serde_json::from_str(INPUT).unwrap();
+    assert!(o
+        .pieces
+        .iter()
+        .filter(|p| p.partial)
+        .all(|p| p.bounding_square + 1e-9 >= input.params.min_bounding_square));
+    assert!(o.pieces.iter().all(|p| p.seed_depth.is_some()
+        && p.max_corner_distance.is_some()
+        && p.reflex_corners.is_some()));
+    assert!(o
+        .validation
+        .checks
+        .iter()
+        .any(|c| c.id == "C6-C7-pending" && !c.passed));
     let o: CoreOutput = serde_json::from_str(&generate_json("{bad")).unwrap();
     assert_eq!(o.status, "error");
 }

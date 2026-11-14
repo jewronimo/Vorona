@@ -199,7 +199,13 @@ impl Problem<'_> {
             residual.extend(sub(*v, *target).map(|a| 0.03 * a));
         }
         let mut barrier = |tile: usize, name: &str, value: f64| {
-            let value = if !whole_tiles[tile] {
+            // Thickness validity also protects physical partials before C5 clips them.
+            let inner_limit = matches!(
+                name,
+                "min_inner_edge" | "inner_orientation" | "simple_inner_polygon"
+            );
+            let measured = whole_tiles[tile] || (inner_limit && !self.t.tiles[tile].auxiliary);
+            let value = if !measured {
                 0.
             } else if value.is_finite() {
                 value
@@ -286,6 +292,19 @@ impl Problem<'_> {
                     [dot(d, a), dot(d, b)]
                 })
                 .collect();
+            // Signed projection rules out edge reversal even when area and simplicity survive.
+            for k in 0..inner.len() {
+                let j = (k + 1) % inner.len();
+                let outer_edge = [q[j][0] - q[k][0], q[j][1] - q[k][1]];
+                let inner_edge = [inner[j][0] - inner[k][0], inner[j][1] - inner[k][1]];
+                let signed = (inner_edge[0] * outer_edge[0] + inner_edge[1] * outer_edge[1])
+                    / outer_edge[0].hypot(outer_edge[1]).max(1e-30);
+                barrier(
+                    i,
+                    "min_inner_edge",
+                    (crate::tol::MIN_INNER_EDGE - signed) / crate::tol::MIN_INNER_EDGE,
+                );
+            }
             footprint.extend(&inner);
             let square = bounding_square(&q);
             let footprint_square = bounding_square(&footprint);
@@ -747,7 +766,12 @@ impl PolishPattern {
             for &k in fan {
                 support.extend(problem.t.corners[k]);
             }
-            block(&support, len * len + len + 3);
+            // Four outer edge/angle rows and one signed inner-edge row per
+            // corner, three size/orientation rows, and two sets of n(n-3)/2
+            // segment-intersection rows. Inner corners use all three incident
+            // normals (the shared bisector offset), so retain the entire fan's
+            // plane union for every row, including physical partials.
+            block(&support, len * len + 2 * len + 3);
         }
         for (i, neighbors) in problem.t.neighbors.iter().enumerate() {
             for &j in neighbors {
@@ -875,11 +899,7 @@ fn reference_penalty_residual(problem: &Problem<'_>, x: &[f64]) -> Vec<f64> {
         .collect();
     r.extend(x.iter().map(|v| 0.05 * v));
     for (i, fan) in problem.fans.iter().enumerate() {
-        if !problem
-            .fixed_whole
-            .as_ref()
-            .expect("polish domain is frozen")[i]
-        {
+        if problem.t.tiles[i].auxiliary || fan.len() < 3 {
             continue;
         }
         let area: f64 = (0..fan.len())
@@ -896,6 +916,35 @@ fn reference_penalty_residual(problem: &Problem<'_>, x: &[f64]) -> Vec<f64> {
         let mut ids = fan.clone();
         if area < 0. {
             ids.reverse();
+        }
+        let inner: Vec<_> = ids
+            .iter()
+            .map(|&corner| {
+                let [j, k, l] = problem.t.corners[corner];
+                let (u, v, w) = (nn[j].n, nn[k].n, nn[l].n);
+                let det = dot(u, cross(v, w));
+                let safe = if det.abs() < 1e-12 { 1e-12 } else { det };
+                sub(
+                    c[corner],
+                    mul(
+                        add(add(cross(v, w), cross(w, u)), cross(u, v)),
+                        p.thickness / safe,
+                    ),
+                )
+            })
+            .collect();
+        for k in 0..ids.len() {
+            let j = (k + 1) % ids.len();
+            let signed = dot(sub(inner[j], inner[k]), unit(sub(c[ids[j]], c[ids[k]])));
+            // Smooth restoring force before collapse; never changes configured thickness.
+            r.push(5. * (crate::tol::MIN_INNER_EDGE + 0.02 - signed).max(0.));
+        }
+        if !problem
+            .fixed_whole
+            .as_ref()
+            .expect("polish domain is frozen")[i]
+        {
+            continue;
         }
         for k in 0..ids.len() {
             let prev = c[ids[(k + ids.len() - 1) % ids.len()]];

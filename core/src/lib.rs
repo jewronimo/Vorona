@@ -1,10 +1,14 @@
 //! Deterministic stone geometry core. All lengths are inches.
+pub mod assembly;
+pub mod closure;
 pub mod depth;
 pub mod feasibility;
 pub mod model;
+pub mod pieces;
 pub mod planes;
 #[cfg(feature = "python")]
 mod py;
+pub mod rims;
 pub mod seeds;
 pub mod sidecount;
 pub mod surface;
@@ -13,7 +17,7 @@ pub mod topology;
 use model::*;
 use sha2::{Digest, Sha256};
 
-/// Check feasibility before generating inch-valued geometry. Tiling remains unimplemented.
+/// Generate inch-valued C5 pieces; C6/C7 pending gates prevent manufacturing acceptance.
 pub fn generate(input: &CoreInput) -> CoreOutput {
     run(input, false)
 }
@@ -42,6 +46,10 @@ fn run(input: &CoreInput, only: bool) -> CoreOutput {
     }
     if input.schema != "vstone.core_input/1"
         || input.surface.kind != "revolve"
+        || !p.thickness.is_finite()
+        || p.thickness <= 0.
+        || !matches!(p.rims.top.as_str(), "level" | "whole")
+        || !matches!(p.rims.bottom.as_str(), "level" | "whole")
         || p.allowed_sides.is_empty()
         || p.allowed_sides.iter().any(|k| !(4..=9).contains(k))
         || !p.target_size.is_finite()
@@ -69,6 +77,51 @@ fn run(input: &CoreInput, only: bool) -> CoreOutput {
                 }
                 .into();
                 out.message = feasibility::message(&surface, &out.feasibility, p);
+            } else {
+                let result = sidecount::build(&surface, p).and_then(|t| {
+                    let g = planes::optimize(&surface, &t, p, &mut seeds::rng(p.seed))
+                        .map_err(|e| format!("C4: {}", e.message))?;
+                    assembly::assemble(&t, &g, &surface, p)
+                });
+                match result {
+                    Err(e) => {
+                        out.message = e;
+                    }
+                    Ok(a) => {
+                        out.pieces = a.pieces;
+                        out.stats.piece_count = out.pieces.len() as u32;
+                        for piece in &out.pieces {
+                            *out.stats
+                                .by_sides
+                                .entry(if piece.partial {
+                                    "partial".into()
+                                } else {
+                                    piece.sides.to_string()
+                                })
+                                .or_default() += 1;
+                            out.stats.max_face_depth =
+                                out.stats.max_face_depth.max(piece.face_depth);
+                            for edge in &piece.edges {
+                                out.stats.max_bevel_deg =
+                                    out.stats.max_bevel_deg.max(edge.bevel_deg);
+                            }
+                        }
+                        out.status = "failed_validation".into();
+                        out.message=format!("C5 pieces built at rim heights {:?}; C6 validation/numbering and C7 layout pending.",a.rim_heights);
+                        out.validation.checks.push(Check {
+                            id: "C5-rejections".into(),
+                            name: "every removed/rejected tile".into(),
+                            passed: a.rejections.is_empty(),
+                            failures: a.rejections,
+                        });
+                        out.validation.checks.push(Check {
+                            id: "C6-C7-pending".into(),
+                            name: "validation, numbering, layout and nesting pending".into(),
+                            passed: false,
+                            failures: vec!["not certified for manufacturing".into()],
+                        });
+                    }
+                }
             }
         }
     }

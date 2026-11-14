@@ -149,3 +149,17 @@ fraction 0.05–0.50 inclusive, never strings or an omitted default. Both JSON
 schemas carry this constraint. Suggestions remain side sets at the current
 variation; messages separately name the smallest working increased variation,
 rounded upward to 5 percentage points. Python migration is a separate SHELL step.
+
+## A05 C5 piece reports
+
+C5 emits `seed_depth` (inward inches), `max_corner_distance` (maximum signed
+outer-corner distance in inches, positive outside) and `reflex_corners` (count)
+on every generated piece, implementing the owner-approved A05 R-OUT-4 addition.
+They are optional only for compatibility with historical ring12 fixture JSON.
+Temporary C5 ids are seed-index ids `S000000`; C6 assigns final P ids.
+Until C6/C7 run, status remains `failed_validation`, with an explicit pending
+check; blank zero, identity transforms and empty map coordinates are not a
+manufacturing-ready layout. Every removed/rejected polygon is listed in the
+C5 check failures, including expected outside/whole-rim removals.
+Selected level cut heights (deterministic inward search within one tile pitch,
+capped at one quarter of the profile height) are stated in the run message.

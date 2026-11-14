@@ -60,8 +60,17 @@ fn main() {
                     let topology_seconds = topology_start.elapsed().as_secs_f64();
                     let diagnostic = planes::fit_and_polish(&surface, &topology, &input.params)
                         .map_err(|e| format!("{e:?}"))?;
+                    let geometry = diagnostic.result.as_ref().map_err(|e| format!("{e:?}"))?;
+                    let assembled = vstone_core::assembly::assemble(
+                        &topology,
+                        geometry,
+                        &surface,
+                        &input.params,
+                    )?;
+                    let closure =
+                        vstone_core::closure::certify(&assembled.pieces, assembled.rim_heights)?;
                     Ok::<_, String>(
-                        serde_json::json!({"params":input.params,"sites":topology.tiles.len(),"auxiliary_sites":topology.tiles.iter().filter(|s|s.auxiliary).count(),"open_hull_sites":topology.boundary.iter().filter(|&&v|v).count(),"topology_seconds":topology_seconds,"fit_seconds":diagnostic.fit_seconds,"polish_seconds":diagnostic.polish_seconds,"optimizer_total_seconds":diagnostic.total_seconds,"fit_profile":diagnostic.fit_profile,"fit":diagnostic.fit,"result":diagnostic.result}),
+                        serde_json::json!({"closure":closure,"params":input.params,"sites":topology.tiles.len(),"auxiliary_sites":topology.tiles.iter().filter(|s|s.auxiliary).count(),"open_hull_sites":topology.boundary.iter().filter(|&&v|v).count(),"topology_seconds":topology_seconds,"fit_seconds":diagnostic.fit_seconds,"polish_seconds":diagnostic.polish_seconds,"optimizer_total_seconds":diagnostic.total_seconds,"fit_profile":diagnostic.fit_profile,"fit":diagnostic.fit,"result":diagnostic.result}),
                     )
                 });
                 let result = match result {

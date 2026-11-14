@@ -52,18 +52,22 @@ for profile in ('cylinder', 'cone_9_to_6', 'vase_bulge'):
         known_timeout = (profile == 'cylinder' and depth == 1.5
                          and randomness == .5 and seed == 3
                          and deadline == 90 and record['timed_out'])
+        report_timeout = (profile == 'cylinder' and depth == 1. and randomness == 0
+                          and seed == 1 and deadline == 60 and record['timed_out'])
         record['outcome'] = ('pass' if record['passed'] else
                              'accepted_known_timeout' if known_timeout else
+                             'accepted_report_only_timeout' if report_timeout else
                              'new_failure' if record['acceptance'] else 'report_only_failure')
         records.append(record)
         print(json.dumps(record), flush=True)
 summary = {name: sum(r['outcome'] == name for r in records) for name in
-           ('pass', 'accepted_known_timeout', 'new_failure', 'report_only_failure')}
+           ('pass', 'accepted_known_timeout', 'accepted_report_only_timeout', 'new_failure', 'report_only_failure')}
 summary.update(records=len(records), acceptance_records=sum(r['acceptance'] for r in records),
                fully_passed=all(r['passed'] for r in records))
 print(json.dumps(summary), file=sys.stderr, flush=True)
-# The owner accepted exactly one incomplete search, NOT a geometry pass.
+# The owner accepted one acceptance timeout and the cylinder depth1 symmetric
+# report-only 60s timeout. Neither provides geometry or closure measurements.
 # Report-only geometry failures are informational; process/JSON failures are not.
 infrastructure_failure = any(not r.get('measurement') and
-                             r['outcome'] != 'accepted_known_timeout' for r in records)
+                             r['outcome'] not in ('accepted_known_timeout', 'accepted_report_only_timeout') for r in records)
 sys.exit(1 if summary['new_failure'] or infrastructure_failure else 0)

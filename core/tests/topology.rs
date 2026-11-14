@@ -772,3 +772,30 @@ fn production_rows_use_conformal_pitch_and_c2_variable_columns() {
         assert!(rows.iter().filter(|r| r[0].s > surf.length()).count() >= 2);
     }
 }
+
+#[test]
+fn periodic_cut_has_no_physical_boundary_at_exact_symmetric_seam() {
+    let mut i = input("cylinder");
+    i.params.target_size = 6.5;
+    i.params.randomness = 0.;
+    let s = surface(&i);
+    let original = seeds::place(&s, &i.params, &mut seeds::rng(1)).unwrap();
+    for angle in [0., 1e-14, 0.17, std::f64::consts::PI] {
+        let mut sites = original.clone();
+        for site in &mut sites {
+            site.u = (site.u + angle).rem_euclid(std::f64::consts::TAU);
+        }
+        let t = Topology::build(sites).unwrap();
+        let last = t.tiles.iter().map(|s| s.row).max().unwrap();
+        assert_eq!(t.boundary.iter().filter(|&&b| b).count(), 18);
+        for (j, tile) in t.tiles.iter().enumerate() {
+            assert_eq!(t.boundary[j], tile.row == 0 || tile.row == last);
+            if t.boundary[j] {
+                assert!(tile.auxiliary);
+            } else {
+                assert_eq!(t.degree(j), 6);
+            }
+        }
+        assert_manifold(&t);
+    }
+}

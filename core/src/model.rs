@@ -88,6 +88,15 @@ pub struct Piece {
     pub edges: Vec<Edge>,
     pub corner_angles_deg: Vec<f64>,
     pub face_depth: f64,
+    /// A05 inward seed depth in inches; absent only in pre-A05 fixtures.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seed_depth: Option<f64>,
+    /// A05 maximum signed outer-corner distance in inches, positive outside.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_corner_distance: Option<f64>,
+    /// A05 number of reflex corners in the outer polygon.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reflex_corners: Option<usize>,
     pub bounding_square: f64,
     pub flat_xform: [[f64; 4]; 4],
     pub blank: u32,
