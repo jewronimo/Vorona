@@ -13,13 +13,13 @@ Turn planes into closed stone pieces: outer face, inner face, side quads, bevel 
   `bounding_square`; fills CoreOutput `pieces` (temporary ids by seed index until C6).
 
 ## Acceptance — A05 owner mapping
-- [ ] A1 `analytic_ring12_offsets_bevels_and_joint_quads`: analytic geometry and half-angle bevels, planar shared joint quads (R-ST-2/3).
-- [ ] A2 `thickness_setting_and_reflex_offset`: configured thickness including thicker stone; simple reflex face supported, inner orientation preserved (A05).
-- [ ] A3 `collapsed_thick_offset_returns_failure`: collapsed inner polygon explicitly fails, never panics (A05 R-VA-4).
-- [ ] A4 `level_saw_and_sliver_are_explicit`: horizontal outer AND inner rim edges; real minimum enclosing square, not diameter (R-RM-1).
-- [ ] A5 `placement_precedes_rejection`: choose cut height before cutting to avoid all undersized partials; fallback reports every rejected tile (owner “no slivers: shift pattern before cutting”, R-RM-2).
-- [ ] A6 `disconnected_reflex_clip_rejected`: disconnected reflex half-space result explicitly rejected before solid construction; whole removal gives square exposed edges (A05 / R-ST-5).
-- [ ] A7 `topology_adapter_metadata_and_cache`: deterministic topology/shared-corner adapter and CoreOutput geometry metadata, configured thickness, volume sanity and explicit pending C6/C7 validation.
+- [x] A1 `analytic_ring12_offsets_bevels_and_joint_quads`: analytic geometry and half-angle bevels, planar shared joint quads (R-ST-2/3).
+- [x] A2 `thickness_setting_and_reflex_offset`: configured thickness including thicker stone; simple reflex face supported, inner orientation preserved (A05).
+- [x] A3 `collapsed_thick_offset_returns_failure`: collapsed inner polygon explicitly fails, never panics (A05 R-VA-4).
+- [x] A4 `level_saw_and_sliver_are_explicit`: horizontal outer AND inner rim edges; real minimum enclosing square, not diameter (R-RM-1).
+- [x] A5 `placement_precedes_rejection`: choose cut height before cutting to avoid all undersized partials; fallback reports every rejected tile (owner “no slivers: shift pattern before cutting”, R-RM-2).
+- [x] A6 `disconnected_reflex_clip_rejected`: disconnected reflex half-space result explicitly rejected before solid construction; whole removal gives square exposed edges (A05 / R-ST-5).
+- [x] A7 `topology_adapter_metadata_and_cache`: deterministic topology/shared-corner adapter and CoreOutput geometry metadata, configured thickness, volume sanity and explicit pending C6/C7 validation.
 
 ## Agent notes
 
@@ -342,3 +342,39 @@ report-only 60s timeout and cylinder depth1.5/r.5/seed3 90s timeout remain
 INCOMPLETE, passed=false, never closure-certified. Do not assume 94 completed
 until actual logs establish it; any additional timeout/failure blocks. No task
 closure or official certification claimed here.
+
+
+### Owner-approved C5 closure — 2026-11-13
+
+Owner approved C5 merge (implementation commit `8c8aead`). A1–A7 above are
+complete against the final existing evidence below; historical pending/blocked
+notes are retained as chronology, not the current gate outcome.
+
+- **A1–A7:** `runs/logs/C5-coloring-dev-check-1907.log` records every named
+  acceptance regression passing (pieces: 9 passed, 0 failed), including the
+  physical-cylinder shared outer/inner cache test. It also records closure,
+  contract/determinism, Rust checks and Python checks (49 passed) succeeding.
+- **Targeted supporting evidence:** `runs/logs/C5-thickness-final-targeted.log`
+  records the four-vase and cone configured-thickness ignored regressions,
+  pieces/closure, clippy and fmt; `runs/logs/C5-coloring-targeted.log` records
+  the unchanged colored/scalar-probe regression and final repair checks.
+- **Official acceptance:** `runs/logs/C5-coloring-acceptance-driver-1907.log`
+  and its `.exit` sidecar record exit 0. Raw official evidence is
+  `runs/logs/acceptance-20261114T031316Z-62048/ignored-release.log` (10 passed,
+  0 failed; 3 superseded experimental tests filtered) and `matrix96.jsonl`:
+  96 attempted, 94 passed/completed with native C5 closure, two incomplete.
+  Cylinder depth1.5/r0.5/seed3 (90s acceptance) and depth1/r0/seed1
+  (60s report-only) remain owner-accepted timeouts, `passed=false`, NOT closure
+  certifications. No other failed cases; completed report-only cases passed.
+- **R-OUT-4 mapping approved by owner:** `seed_depth`,
+  `max_corner_distance` (signed inches, positive outside), `reflex_corners`,
+  as mapped in `docs/requests/002-c5-a05-metadata.md`; optional for legacy
+  fixtures and emitted on new C5 pieces. SHELL report consumption remains
+  separate work; C6/C7 remain pending, not implied complete by this approval.
+- **Owner-approved guard interpretation:** `MIN_INNER_EDGE = 0.001 in` is a
+  numerical geometry-validity guard only until the owner selects a manufacturing
+  value. It is NOT an approved manufacturing minimum. Configured outer
+  `min_edge`, thickness and all other manufacturing settings remain unchanged.
+
+This closure update edits documentation only; no checks rerun, commit or merge
+performed by the documentation agent.
