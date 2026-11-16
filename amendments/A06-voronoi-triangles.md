@@ -1,0 +1,141 @@
+# Amendment A06 — Polygons + triangles (rectified Voronoi)
+
+**Date:** 2026-11-15 · **Approved by:** Jerry · **Amends:** A05 (pattern and C4 method; depth-space
+idea kept), docs/SPEC.md (R-TL-2, R-TL-11, R-ST-*, R-VA-*), docs/GEOMETRY.md §2/§4/§6, INTERFACE.md and
+both JSON schemas, example config, tasks C3, C4, C5, C6 · **Adds:** task S2c. Read after A05. Where
+this amendment and an earlier file disagree, this amendment wins.
+
+## 1. Why
+
+With A05 every corner is shared by exactly three flat stones. On surfaces that are straight in one
+direction (cylinders, cones) three flat stones cannot all meet on the surface, so the wall must bulge
+and pinch. Spread evenly, that shows as rings; the owner rejected the result ("the cylinder does not
+look like one"). Smaller stones and a corner limit reduced the rings but did not remove them;
+spiral and checkerboard depth patterns failed (Claude prototypes, 2026-11-14).
+
+Owner decision: introduce **triangles**. Every corner is then shared by **four** pieces (two polygons
+and two triangles). Four-piece corners can lie on any surface, and a triangle is always flat, so the
+shape follows the surface and relief becomes a choice, not a side effect.
+
+## 2. The model (owner decisions 2026-11-15)
+
+1. **Seeds** (points) are laid out as before (C3): rows on the surface, random or symmetric, each
+   seed with a relief depth `dᵢ` (see 6). Delaunay topology in (u, v), periodic, integer seam rule.
+2. **Pattern = rectified Voronoi.**
+   - One **polygon** per seed (the Voronoi cell, shrunk).
+   - One **triangle** per Delaunay triangle (each former three-stone corner becomes a triangle).
+   - One **corner** per Delaunay edge (i, j): it is shared by polygon i, polygon j and the two
+     triangles on either side of that edge. Every corner has exactly 4 pieces.
+3. **Polygon plane through its seed** (A05 rule kept for polygons): plane πᵢ passes through the seed
+   at depth `dᵢ`; 2 unknowns per polygon (tilts about the two surface tangents).
+4. **Corners on lines.** Corner (i, j) lies on the line πᵢ ∩ πⱼ, so both polygons are exactly flat by
+   construction. 1 unknown per corner: its position along that line. Target position: the midpoint of
+   the Voronoi edge between seeds i and j, on the surface at depth (dᵢ + dⱼ)/2. Triangles are flat by
+   definition. No three-plane intersections are needed anywhere.
+5. **Polygon side counts vary.** Rows get a seed count from the local circumference, so narrowing or
+   widening surfaces (cone, vase) get 4-, 5-, 7- and 8-sided polygons where the count changes. This
+   replaces `allowed_sides = [6]` and the C2 column-change machinery for this pattern.
+6. **Relief.** `dᵢ = relief_base + randomness-driven depth in [0, depth]`.
+   - Random (default): uniform in [0, depth], deterministic from `seed`; positions jittered ±10 % of
+     spacing.
+   - Symmetric (`randomness = 0`): every polygon in a row identical; rows may alternate depth.
+     Rotational symmetry gate applies (see 9).
+   - `depth = 0` gives a smooth surface.
+   - `relief_base`: planes sit slightly inside the surface so corners straddle it. Choose it so the
+     median signed corner distance is ≈ 0 (prototype: 0.6 in at 9.2 in seed spacing).
+7. **Stones** = each piece offset inward by `thickness` (0.375 default) with bisector joints, as A05.
+8. **Ready for uploaded surfaces (L1):** after seeding, only generic surface queries are used.
+
+## 3. Limits (owner)
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `min_triangle_edge` (new) | 4.0 in | every triangle side |
+| `min_edge` | 1.0 in | every polygon side |
+| `min_corner_angle_deg` | **30** (was 70) | plan-view corner angle, all pieces |
+| `max_corner_angle_deg` | 230 | reflex polygon corners |
+| `bevel_cap_deg` | 60 | taper of the grout face (waterjet limit) |
+| `blank_usable` | 11.5 in | every piece fits this square (12 × 12 blank) |
+| `depth` | **1.0** (was 1.5) | relief depth |
+| `min_bounding_square` | 4.0 in | **rim partials only** (sliver guard), until the owner decides otherwise |
+
+Note for the owner: in this pattern polygon sides equal triangle sides, so `min_triangle_edge` 4 in
+sets polygon size: seed spacing ≈ 2.3 × `min_triangle_edge` (9.2 in), polygons ≈ 8–9 in across.
+`target_size` becomes derived (report it); lowering `min_triangle_edge` is the size knob.
+
+Corner distance to the surface is limited, not only reported: every corner within
+`[-(relief_base + depth + 0.4), +0.75]` in (barrier). Report min/max/median.
+
+## 4. Task changes
+
+### S2c (SHELL) — settings
+- Add `pattern` (`"voronoi_triangles"` default, `"voronoi"` = A05 behaviour), `min_triangle_edge`,
+  `relief_base` (`"auto"` or inches). Change defaults: `min_corner_angle_deg` 30, `depth` 1.0.
+  `min_bounding_square` documented as rim-partials only. ConfigError naming the key for bad values.
+- Schemas, INTERFACE, example config, fixtures updated together.
+
+### C3 — rectified topology
+- Seeds per row from local circumference (5 above); jitter and relief depths as 6.
+- Build polygons, triangles and corners (2). Every in-band corner has 4 pieces; open edges only at the
+  outermost padding rows (A05 seam rule and hard error on open interior edges kept).
+- Tests: piece/corner counts, every corner 4-valent in band, deterministic, seam-independent.
+
+### C4 — solver for this pattern
+- Unknowns: 2 tilts per polygon + 1 slide per corner (2–4 above). Residuals: corners to targets,
+  small regularisation, barriers for every limit in 3 plus the inner-polygon-at-thickness guard
+  (C5 lesson, keep). Sparse Jacobian (prototype runs 20–60 s in Python).
+- **Multi-start required:** the prototype gets stuck on some starts (cone, relief 1.0: seed 1 fails,
+  seed 2 passes). On failure retry with deterministic perturbed starts (e.g. 5 starts), keep the best;
+  report every attempt. Never relax a limit to pass.
+- Symmetric mode: solve one row representative and copy (rotation-exact), reuse the symmetry-repair
+  findings.
+- Keep the A05 solver available under `pattern = "voronoi"`.
+
+### C5 — pieces
+- Adapter accepts polygons and triangles. Joints = bisector planes as now.
+- **Nearly coplanar neighbours** (half-angle < 1°): use a square joint (perpendicular to the face),
+  bevel 0. The bisector is unstable there (prototype shows false huge back-face errors).
+- **Back-face gap at 4-piece corners:** inner corners of the four pieces do not meet in one point.
+  Measure the mismatch between the two inner edges of every joint; report min/median/max per piece
+  and overall. Prototype: median 0.13–0.30 in. Not a failure unless > `max_back_gap` (new setting,
+  default 0.5 in, owner may change); report every case above it.
+- Rim level cut, sliver handling (`min_bounding_square` for partials), closure gates: unchanged.
+
+### C6 — validation
+- Rules of section 3 per piece type; back-gap report; corner-distance report; closure.
+
+## 5. Acceptance (C3 + C4 + C5 together)
+
+Profiles: cylinder 18 × 60, cone 9 → 6, vase bulge. Settings as section 3.
+- [ ] Smooth (`depth = 0`): all three pass every limit and closure.
+- [ ] Random relief `depth = 1.0`, seeds 1..10: all three pass (multi-start allowed, reported).
+- [ ] Symmetric (`randomness = 0`, `depth = 1.0`): all three pass, rotational gate (equal spacing and
+      size per row within 1e-6).
+- [ ] `depth = 1.5`: report only.
+- [ ] Every polygon flat (|corner-to-plane| ≤ 1e-6 in), every corner 4-valent in band, determinism.
+- [ ] Back-gap and corner-distance reports present; runtime per case reported (budget 90 s).
+- [ ] Owner STEP export of cylinder, cone, vase (smooth and random seed 1) for review.
+
+**If the cone or vase does not pass** after multi-start: stop, report the best result per case and
+what was tried. The owner adjusts settings (e.g. `min_triangle_edge`, `depth`) from the evidence.
+
+## 6. Prototype reference (Claude, 2026-11-15, not production code)
+
+`docs/prototypes/A06_tri_proto.py`. Env: PROFILE cyl|cone|vase, A (seed spacing 9.2), D (relief
+depth), JIT (0.1), SEED, NFEV (optimizer evaluations; 0 = construction only), BASE (0.6), OUT.
+
+| Case (A = 9.2 in) | Result |
+|---|---|
+| Cylinder smooth / relief 1.0 / relief 1.5 | PASS / PASS / PASS |
+| Vase smooth / relief 1.0 / relief 1.5 | PASS / PASS / 3 short triangle edges |
+| Cone smooth / relief 1.0 | PASS / seed 1: 28 short triangle edges, **seed 2: PASS** |
+
+Cylinder relief 1.0: triangle sides ≥ 4.1 in, sharpest corner 33°, max taper 53°, corners −1.7 to
++0.75 in from the surface, back-face gap median 0.17 in.
+
+## 7. Process
+
+- `task/symmetry-repair` (A05 solver): commit as WIP on its branch, do not merge; its findings feed the
+  A06 symmetric mode.
+- C6 waits for A06 C3–C5.
+- Branch per card as before; Claude reviews before every merge.
