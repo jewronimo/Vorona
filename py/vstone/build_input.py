@@ -41,6 +41,10 @@ def build_core_input(config: RunConfig, profile_path=None) -> dict[str, Any]:
         "schema": "vstone.core_input/1",
         "surface": {"kind": config.input_kind, "profile": profile_points},
         "params": {
+            "pattern": config.pattern,
+            "min_triangle_edge": config.min_triangle_edge,
+            "relief_base": config.relief_base,
+            "max_back_gap": config.max_back_gap,
             "thickness": config.thickness,
             "allowed_sides": config.allowed_sides,
             "target_size": config.target_size,

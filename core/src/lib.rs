@@ -33,15 +33,49 @@ fn run(input: &CoreInput, only: bool) -> CoreOutput {
         Sha256::digest(serde_json::to_vec(input).expect("serializable input"))
     ));
     let p = &input.params;
-    if !p.depth.is_finite() || p.depth <= 0.0 {
-        out.message = "invalid depth: expected a positive finite value in inches".into();
+    if !p.depth.is_finite() || p.depth < 0.0 || (p.pattern == Pattern::Voronoi && p.depth == 0.0) {
+        out.message =
+            "invalid depth: expected finite nonnegative inches (strictly positive for voronoi)"
+                .into();
         return out;
+    }
+    for (key, valid) in [
+        (
+            "min_triangle_edge",
+            p.min_triangle_edge.is_finite() && p.min_triangle_edge > 0.0,
+        ),
+        (
+            "max_back_gap",
+            p.max_back_gap.is_finite() && p.max_back_gap >= 0.0,
+        ),
+        (
+            "relief_base",
+            match p.relief_base {
+                ReliefBase::Auto(_) => true,
+                ReliefBase::Inches(v) => v.is_finite() && v >= 0.0,
+            },
+        ),
+        (
+            "min_corner_angle_deg",
+            p.min_corner_angle_deg.is_finite()
+                && p.min_corner_angle_deg > 0.0
+                && p.min_corner_angle_deg < 180.0,
+        ),
+    ] {
+        if !valid {
+            out.message = format!("invalid {key}: value outside the finite contract range");
+            return out;
+        }
     }
     if !p.max_corner_angle_deg.is_finite()
         || p.max_corner_angle_deg <= 180.0
         || p.max_corner_angle_deg >= 270.0
     {
         out.message = "invalid max_corner_angle_deg: expected a finite angle strictly between 180 and 270 degrees".into();
+        return out;
+    }
+    if p.pattern == Pattern::VoronoiTriangles {
+        out.message = "unsupported pattern voronoi_triangles: A06 C3/C4 implementation pending; no legacy fallback".into();
         return out;
     }
     if input.schema != "vstone.core_input/1"

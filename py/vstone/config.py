@@ -18,6 +18,7 @@ class RunConfig:
     thickness: float
 
     # Pattern section
+    pattern: Literal["voronoi_triangles", "voronoi"]
     allowed_sides: list[int]  # Subset of 4..9
     target_size: float
     size_variation: float
@@ -36,6 +37,9 @@ class RunConfig:
     min_corner_angle_deg: float
     bevel_cap_deg: float
     depth: float
+    min_triangle_edge: float
+    relief_base: str | float
+    max_back_gap: float
     max_corner_angle_deg: float
     min_bounding_square: float
     allow_waists: bool
@@ -69,7 +73,7 @@ def load_config(path: str) -> RunConfig:
                 "max_edge",
                 "min_corner_angle_deg",
                 "bevel_cap_deg",
-                "depth",
+                "min_triangle_edge",
                 "min_bounding_square",
                 "blanks_size",
                 "blanks_usable",
@@ -79,6 +83,21 @@ def load_config(path: str) -> RunConfig:
                 or value <= 0
             ):
                 raise ConfigError(f"{key}: expected finite positive number")
+        for key in ("depth", "max_back_gap"):
+            value = getattr(config, key)
+            if (
+                type(value) not in (int, float)
+                or not math.isfinite(value)
+                or value < 0
+                or (key == "depth" and config.pattern == "voronoi" and value == 0)
+            ):
+                raise ConfigError(f"{key}: invalid value for {config.pattern}")
+        if config.relief_base != "auto" and (
+            type(config.relief_base) not in (int, float)
+            or not math.isfinite(config.relief_base)
+            or config.relief_base < 0
+        ):
+            raise ConfigError("relief_base: expected auto or finite nonnegative inches")
         if not config.allowed_sides or any(
             type(side) is not int for side in config.allowed_sides
         ):
@@ -119,10 +138,17 @@ def _load_config(path: str) -> RunConfig:
     """Load TOML file and validate it into a RunConfig."""
     with open(path, "rb") as f:
         data = tomllib.load(f)
+    supplied_pattern = data.get("pattern", {})
+    if not isinstance(supplied_pattern, dict):
+        raise ConfigError("pattern: expected table")
+    pattern = supplied_pattern.get("pattern", "voronoi_triangles")
+    if pattern not in ("voronoi_triangles", "voronoi"):
+        raise ConfigError("pattern: expected voronoi_triangles or voronoi")
     defaults = {
         "input": {"kind": "revolve"},
         "stone": {"thickness": 0.375},
         "pattern": {
+            "pattern": "voronoi_triangles",
             "allowed_sides": [6],
             "target_size": 6.5,
             "size_variation": 15,
@@ -138,9 +164,12 @@ def _load_config(path: str) -> RunConfig:
         "limits": {
             "min_edge": 1.0,
             "max_edge": 6.0,
-            "min_corner_angle_deg": 70.0,
+            "min_corner_angle_deg": 70.0 if pattern == "voronoi" else 30.0,
             "bevel_cap_deg": 60.0,
-            "depth": 1.5,
+            "depth": 1.5 if pattern == "voronoi" else 1.0,
+            "min_triangle_edge": 4.0,
+            "relief_base": "auto",
+            "max_back_gap": 0.5,
             "max_corner_angle_deg": 230.0,
             "min_bounding_square": 4.0,
             "allow_waists": False,
@@ -347,6 +376,7 @@ def _load_config(path: str) -> RunConfig:
     # Create RunConfig instance
     config = RunConfig(
         input_kind="revolve",
+        pattern=pattern,
         profile=input_data["profile"],
         thickness=thickness,
         allowed_sides=allowed_sides,
@@ -363,6 +393,9 @@ def _load_config(path: str) -> RunConfig:
         min_corner_angle_deg=min_corner_angle_deg,
         bevel_cap_deg=bevel_cap_deg,
         depth=depth,
+        min_triangle_edge=limits_data["min_triangle_edge"],
+        relief_base=limits_data["relief_base"],
+        max_back_gap=limits_data["max_back_gap"],
         max_corner_angle_deg=limits_data["max_corner_angle_deg"],
         min_bounding_square=min_bounding_square,
         allow_waists=allow_waists,

@@ -91,7 +91,10 @@
           "type": "number"
         },
         "min_corner_angle_deg": {
-          "type": "number"
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 180,
+          "default": 30.0
         },
         "bevel_cap_deg": {
           "type": "number"
@@ -113,14 +116,44 @@
         },
         "depth": {
           "type": "number",
-          "exclusiveMinimum": 0,
-          "default": 1.5
+          "minimum": 0,
+          "default": 1.0
         },
         "max_corner_angle_deg": {
           "type": "number",
           "exclusiveMinimum": 180,
           "exclusiveMaximum": 270,
           "default": 230
+        },
+        "pattern": {
+          "type": "string",
+          "enum": [
+            "voronoi_triangles",
+            "voronoi"
+          ],
+          "default": "voronoi_triangles"
+        },
+        "min_triangle_edge": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 4.0
+        },
+        "max_back_gap": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.5
+        },
+        "relief_base": {
+          "anyOf": [
+            {
+              "const": "auto"
+            },
+            {
+              "type": "number",
+              "minimum": 0
+            }
+          ],
+          "default": "auto"
         }
       },
       "required": [
@@ -134,7 +167,6 @@
         "rims",
         "min_edge",
         "max_edge",
-        "min_corner_angle_deg",
         "bevel_cap_deg",
         "min_bounding_square",
         "allow_waists",
@@ -142,7 +174,32 @@
         "blank_usable",
         "nest_gap"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "pattern": {
+                "const": "voronoi"
+              }
+            },
+            "required": [
+              "pattern"
+            ]
+          },
+          "then": {
+            "properties": {
+              "depth": {
+                "exclusiveMinimum": 0,
+                "default": 1.5
+              },
+              "min_corner_angle_deg": {
+                "default": 70.0
+              }
+            }
+          }
+        }
+      ]
     },
     "Ends": {
       "type": "object",

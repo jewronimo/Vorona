@@ -14,9 +14,40 @@ pub struct Surface {
     pub kind: String,
     pub profile: Vec<[f64; 2]>,
 }
+/// Selected topology; omission selects the A06 pattern.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Pattern {
+    #[default]
+    VoronoiTriangles,
+    Voronoi,
+}
+/// Relief base in inches, transported unchanged until geometry resolves auto.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
+#[serde(untagged)]
+pub enum ReliefBase {
+    Auto(AutoRelief),
+    Inches(f64),
+}
+/// The only accepted symbolic relief-base value.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub enum AutoRelief {
+    #[default]
+    #[serde(rename = "auto")]
+    Auto,
+}
+impl Default for ReliefBase {
+    fn default() -> Self {
+        Self::Auto(AutoRelief::Auto)
+    }
+}
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(from = "ParamsWire")]
 pub struct Params {
+    pub pattern: Pattern,
+    pub min_triangle_edge: f64,
+    pub relief_base: ReliefBase,
+    pub max_back_gap: f64,
     pub thickness: f64,
     pub allowed_sides: Vec<u32>,
     pub target_size: f64,
@@ -29,8 +60,46 @@ pub struct Params {
     pub max_edge: f64,
     pub min_corner_angle_deg: f64,
     pub bevel_cap_deg: f64,
-    #[serde(default = "default_depth")]
     pub depth: f64,
+    pub max_corner_angle_deg: f64,
+    pub min_bounding_square: f64,
+    pub allow_waists: bool,
+    pub blank_size: f64,
+    pub blank_usable: f64,
+    pub nest_gap: f64,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ParamsWire {
+    #[serde(default, deserialize_with = "read_pattern")]
+    pub pattern: Pattern,
+    #[serde(
+        default = "default_min_triangle_edge",
+        deserialize_with = "read_min_triangle_edge"
+    )]
+    pub min_triangle_edge: f64,
+    #[serde(default, deserialize_with = "read_relief_base")]
+    pub relief_base: ReliefBase,
+    #[serde(
+        default = "default_max_back_gap",
+        deserialize_with = "read_max_back_gap"
+    )]
+    pub max_back_gap: f64,
+    pub thickness: f64,
+    pub allowed_sides: Vec<u32>,
+    pub target_size: f64,
+    pub size_variation: f64,
+    pub randomness: f64,
+    pub seed: u64,
+    pub ends: Ends,
+    pub rims: Rims,
+    pub min_edge: f64,
+    pub max_edge: f64,
+    #[serde(default, deserialize_with = "read_min_angle")]
+    pub min_corner_angle_deg: Option<f64>,
+    pub bevel_cap_deg: f64,
+    #[serde(default, deserialize_with = "read_depth")]
+    pub depth: Option<f64>,
     #[serde(default = "default_max_corner_angle")]
     pub max_corner_angle_deg: f64,
     pub min_bounding_square: f64,
@@ -38,6 +107,41 @@ pub struct Params {
     pub blank_size: f64,
     pub blank_usable: f64,
     pub nest_gap: f64,
+}
+impl From<ParamsWire> for Params {
+    fn from(w: ParamsWire) -> Self {
+        Self {
+            pattern: w.pattern,
+            min_triangle_edge: w.min_triangle_edge,
+            relief_base: w.relief_base,
+            max_back_gap: w.max_back_gap,
+            thickness: w.thickness,
+            allowed_sides: w.allowed_sides,
+            target_size: w.target_size,
+            size_variation: w.size_variation,
+            randomness: w.randomness,
+            seed: w.seed,
+            ends: w.ends,
+            rims: w.rims,
+            min_edge: w.min_edge,
+            max_edge: w.max_edge,
+            min_corner_angle_deg: w.min_corner_angle_deg.unwrap_or(match w.pattern {
+                Pattern::Voronoi => 70.0,
+                Pattern::VoronoiTriangles => 30.0,
+            }),
+            bevel_cap_deg: w.bevel_cap_deg,
+            depth: w.depth.unwrap_or(match w.pattern {
+                Pattern::Voronoi => 1.5,
+                Pattern::VoronoiTriangles => 1.0,
+            }),
+            max_corner_angle_deg: w.max_corner_angle_deg,
+            min_bounding_square: w.min_bounding_square,
+            allow_waists: w.allow_waists,
+            blank_size: w.blank_size,
+            blank_usable: w.blank_usable,
+            nest_gap: w.nest_gap,
+        }
+    }
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -156,9 +260,40 @@ pub struct Provenance {
     pub input_sha256: String,
 }
 
-fn default_depth() -> f64 {
-    1.5
+fn default_min_triangle_edge() -> f64 {
+    4.0
+}
+fn default_max_back_gap() -> f64 {
+    0.5
 }
 fn default_max_corner_angle() -> f64 {
     230.0
+}
+
+fn read_pattern<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Pattern, D::Error> {
+    Pattern::deserialize(d).map_err(|e| serde::de::Error::custom(format!("pattern: {e}")))
+}
+
+fn read_relief_base<'de, D: serde::Deserializer<'de>>(d: D) -> Result<ReliefBase, D::Error> {
+    ReliefBase::deserialize(d).map_err(|e| serde::de::Error::custom(format!("relief_base: {e}")))
+}
+
+fn read_depth<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<f64>, D::Error> {
+    f64::deserialize(d)
+        .map(Some)
+        .map_err(|e| serde::de::Error::custom(format!("depth: {e}")))
+}
+
+fn read_min_angle<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<f64>, D::Error> {
+    f64::deserialize(d)
+        .map(Some)
+        .map_err(|e| serde::de::Error::custom(format!("min_corner_angle_deg: {e}")))
+}
+
+fn read_min_triangle_edge<'de, D: serde::Deserializer<'de>>(d: D) -> Result<f64, D::Error> {
+    f64::deserialize(d).map_err(|e| serde::de::Error::custom(format!("min_triangle_edge: {e}")))
+}
+
+fn read_max_back_gap<'de, D: serde::Deserializer<'de>>(d: D) -> Result<f64, D::Error> {
+    f64::deserialize(d).map_err(|e| serde::de::Error::custom(format!("max_back_gap: {e}")))
 }

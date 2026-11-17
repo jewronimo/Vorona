@@ -21,7 +21,7 @@ def test_example_matches_core_fixture():
     config = load_config(EXAMPLE)
     actual = build_core_input(config, ROOT / config.profile)
     expected = json.loads(
-        (ROOT / "tests/fixtures/core_input_cylinder.json").read_text()
+        (ROOT / "tests/fixtures/core_input_a06_cylinder.json").read_text()
     )
     assert actual["params"] == expected["params"]
     assert actual["surface"]["kind"] == expected["surface"]["kind"]
@@ -152,15 +152,20 @@ def test_no_geometry_decisions_in_shell():
 ])
 def test_a05_invalid_settings(tmp_path, key, value):
     path = tmp_path / "bad.toml"
-    path.write_text('[input]\nprofile = "profile.step"\n[limits]\n' + f'{key} = {value}\n')
+    path.write_text(
+        '[input]\nprofile = "profile.step"\n[pattern]\npattern = "voronoi"\n'
+        '[limits]\n' + f'{key} = {value}\n'
+    )
     with pytest.raises(ConfigError, match=key):
         load_config(path)
 
 
 def test_a05_defaults_and_core_keys(tmp_path):
     path = tmp_path / "minimal.toml"
-    path.write_text('[input]\nprofile = "profile.step"\n')
-    for config in (load_config(path), load_config(EXAMPLE)):
+    path.write_text(
+        '[input]\nprofile = "profile.step"\n[pattern]\npattern = "voronoi"\n'
+    )
+    for config in (load_config(path),):
         assert config.depth == 1.5
         assert config.max_corner_angle_deg == 230.0
         assert config.thickness == 0.375

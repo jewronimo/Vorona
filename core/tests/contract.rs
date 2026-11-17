@@ -313,3 +313,123 @@ fn depth_and_reflex_angle_contract_defaults_and_ranges() {
     assert!(!validator.is_valid(&raw));
     assert!(serde_json::from_value::<CoreInput>(raw).is_err());
 }
+
+#[test]
+fn a06_pattern_defaults_and_pending_dispatch() {
+    let mut raw: serde_json::Value = serde_json::from_str(INPUT).unwrap();
+    for key in [
+        "pattern",
+        "depth",
+        "min_corner_angle_deg",
+        "min_triangle_edge",
+        "relief_base",
+        "max_back_gap",
+    ] {
+        raw["params"].as_object_mut().unwrap().remove(key);
+    }
+    let schema: serde_json::Value =
+        serde_json::from_str(include_str!("../../docs/schema/core_input.schema.json")).unwrap();
+    let validator = jsonschema::draft202012::new(&schema).unwrap();
+    assert!(validator.is_valid(&raw));
+    let default: CoreInput = serde_json::from_value(raw.clone()).unwrap();
+    assert_eq!(default.params.pattern, Pattern::VoronoiTriangles);
+    assert_eq!(default.params.depth, 1.0);
+    assert_eq!(default.params.min_corner_angle_deg, 30.0);
+    assert_eq!(default.params.min_triangle_edge, 4.0);
+    assert_eq!(default.params.max_back_gap, 0.5);
+    assert_eq!(default.params.relief_base, ReliefBase::default());
+    for output in [
+        vstone_core::generate(&default),
+        vstone_core::feasibility_only(&default),
+    ] {
+        assert_eq!(output.status, "error");
+        assert!(output.message.contains("voronoi_triangles") && output.message.contains("pending"));
+        assert!(output.pieces.is_empty());
+        assert!(output.feasibility.suggestions.is_empty());
+    }
+    raw["params"]["pattern"] = serde_json::json!("voronoi");
+    let legacy: CoreInput = serde_json::from_value(raw.clone()).unwrap();
+    assert_eq!(legacy.params.depth, 1.5);
+    assert_eq!(legacy.params.min_corner_angle_deg, 70.0);
+    raw["params"]["depth"] = serde_json::json!(2.0);
+    raw["params"]["min_corner_angle_deg"] = serde_json::json!(45.0);
+    let explicit: CoreInput = serde_json::from_value(raw).unwrap();
+    assert_eq!(explicit.params.depth, 2.0);
+    assert_eq!(explicit.params.min_corner_angle_deg, 45.0);
+    let fixture = include_str!("../../tests/fixtures/core_input_a06_cylinder.json");
+    assert!(validator.is_valid(&serde_json::from_str(fixture).unwrap()));
+    let input: CoreInput = serde_json::from_str(fixture).unwrap();
+    assert_eq!(serde_json::to_string(&input).unwrap(), fixture);
+    assert_eq!(input.params.pattern, Pattern::VoronoiTriangles);
+}
+
+#[test]
+fn a06_ranges_schema_and_rust_agree() {
+    let schema: serde_json::Value =
+        serde_json::from_str(include_str!("../../docs/schema/core_input.schema.json")).unwrap();
+    let validator = jsonschema::draft202012::new(&schema).unwrap();
+    for pattern in ["voronoi", "voronoi_triangles"] {
+        for (key, value, valid) in [
+            (
+                "depth",
+                serde_json::json!(0),
+                pattern == "voronoi_triangles",
+            ),
+            ("depth", serde_json::json!(-1), false),
+            ("min_triangle_edge", serde_json::json!(0), false),
+            ("min_triangle_edge", serde_json::json!(0.1), true),
+            ("min_triangle_edge", serde_json::json!(true), false),
+            ("max_back_gap", serde_json::json!("0.5"), false),
+            ("max_back_gap", serde_json::json!(0), true),
+            ("max_back_gap", serde_json::json!(-0.1), false),
+            ("relief_base", serde_json::json!("auto"), true),
+            ("relief_base", serde_json::json!(0), true),
+            ("relief_base", serde_json::json!(0.6), true),
+            ("relief_base", serde_json::json!(-1), false),
+            ("relief_base", serde_json::json!("AUTO"), false),
+            ("relief_base", serde_json::Value::Null, false),
+            ("depth", serde_json::Value::Null, false),
+            ("min_corner_angle_deg", serde_json::Value::Null, false),
+            ("pattern", serde_json::json!("unknown"), false),
+        ] {
+            let mut raw: serde_json::Value = serde_json::from_str(INPUT).unwrap();
+            raw["params"]["pattern"] = serde_json::json!(pattern);
+            raw["params"][key] = value.clone();
+            assert_eq!(validator.is_valid(&raw), valid, "{pattern} {key} {value}");
+            let output: CoreOutput =
+                serde_json::from_str(&vstone_core::feasibility_only_json(&raw.to_string()))
+                    .unwrap();
+            if !valid {
+                assert_eq!(output.status, "error");
+                assert!(output.message.contains(key), "{}", output.message);
+            } else {
+                assert!(!output.message.starts_with("invalid"), "{}", output.message);
+                let parsed: CoreInput = serde_json::from_value(raw).unwrap();
+                let encoded = serde_json::to_value(parsed).unwrap();
+                if value.is_number() {
+                    assert_eq!(encoded["params"][key].as_f64(), value.as_f64());
+                } else {
+                    assert_eq!(encoded["params"][key], value);
+                }
+            }
+        }
+    }
+    for key in ["depth", "min_triangle_edge", "max_back_gap", "relief_base"] {
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let mut input: CoreInput = serde_json::from_str(INPUT).unwrap();
+            match key {
+                "depth" => input.params.depth = value,
+                "min_triangle_edge" => input.params.min_triangle_edge = value,
+                "max_back_gap" => input.params.max_back_gap = value,
+                _ => input.params.relief_base = ReliefBase::Inches(value),
+            }
+            for output in [
+                vstone_core::generate(&input),
+                vstone_core::feasibility_only(&input),
+            ] {
+                assert_eq!(output.status, "error");
+                assert!(output.message.contains(key));
+            }
+        }
+    }
+}

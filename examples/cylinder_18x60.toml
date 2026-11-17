@@ -1,4 +1,4 @@
-# Reference run: 18 in diameter x 60 in tall open cylinder, hexagons only.
+# Reference run: 18 in diameter x 60 in tall, A06 polygons and triangles.
 # All lengths in inches. Values marked (open) are defaults Jerry has not confirmed.
 
 [input]
@@ -9,8 +9,9 @@ profile = "examples/cylinder_18x60_profile.step"
 thickness = 0.375
 
 [pattern]
+pattern = "voronoi_triangles"
 allowed_sides = [6]                   # any subset of 4..9
-target_size = 6.5                     # average piece width
+target_size = 6.5                     # legacy setting; triangles use min_triangle_edge
 size_variation = "tight"              # "tight" = +-15 %, "wide" = +-40 %   (open)
 randomness = 0.0                      # 0 = regular, 1 = organic
 seed = 42
@@ -24,11 +25,14 @@ bottom_rim = "level"
 [limits]
 min_edge = 1.0                        # (open)
 max_edge = 6.0                        # (open)
-min_corner_angle_deg = 70.0           # (open)
+min_corner_angle_deg = 30.0
 bevel_cap_deg = 60.0
-depth = 1.5
+depth = 1.0
+min_triangle_edge = 4.0
+relief_base = "auto"
+max_back_gap = 0.5
 max_corner_angle_deg = 230.0
-min_bounding_square = 4.0             # (open: "bounding square >= 4")
+min_bounding_square = 4.0             # rim partials only
 allow_waists = false
 
 [blanks]
