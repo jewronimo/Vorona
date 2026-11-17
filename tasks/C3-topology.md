@@ -37,8 +37,12 @@ where every interior tile's side count is in the allowed set.
   /tmp/vstone-acceptance.lock across all worktrees, and owns the acceptance
   process group. Cancellation kills that group before releasing the lock;
   no pkill or pgrep is required. A per-run cancellation marker also handles
-  termination arriving before container startup. SIGKILL of the host cannot
-  be trapped.
+  termination arriving before container startup. A shared host heartbeat also
+  expires after 15 seconds, so untrappable host death stops the container group.
+- Attempt 20261117T031020Z-89444 was interrupted by the execution tool's
+  ten-minute timeout before the matrix; it is invalid acceptance evidence.
+  Parent explicitly stopped its surviving container group, verified idle,
+  and added/tested heartbeat expiry before a fresh serial rerun.
 - Container lifecycle verification: runs/logs/C3-a06-harness-lifecycle.log
   (overlap refusal, descendant termination, lock reuse, early cancellation).
 - Parent owns the sequential official dev-check and single fresh acceptance;

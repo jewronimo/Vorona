@@ -6,6 +6,7 @@ from pathlib import Path
 import signal
 import subprocess
 import sys
+import time
 
 
 LOCK = Path("/tmp/vstone-acceptance.lock")
@@ -41,11 +42,21 @@ def main():
 
         for signum in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
             signal.signal(signum, terminate)
+        heartbeat = os.environ.get("ACCEPTANCE_HEARTBEAT")
+
+        def check_host(signum, frame):
+            if time.time() - Path(heartbeat).stat().st_mtime > 15:
+                print("Host heartbeat expired; terminating acceptance.", flush=True)
+                raise SystemExit(143)
+
+        if heartbeat:
+            signal.signal(signal.SIGALRM, check_host)
+            signal.setitimer(signal.ITIMER_REAL, 2, 2)
         try:
             state.write_text(str(os.getpid()))
             if cancelled.exists():
                 return 143
-            blocked = {signal.SIGHUP, signal.SIGINT, signal.SIGTERM}
+            blocked = {signal.SIGHUP, signal.SIGINT, signal.SIGTERM, signal.SIGALRM}
             previous = signal.pthread_sigmask(signal.SIG_BLOCK, blocked)
             try:
                 child = subprocess.Popen(
@@ -55,6 +66,7 @@ def main():
                 signal.pthread_sigmask(signal.SIG_SETMASK, previous)
             return child.wait()
         finally:
+            signal.setitimer(signal.ITIMER_REAL, 0)
             for signum in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
                 signal.signal(signum, signal.SIG_IGN)
             if child is not None:
