@@ -568,3 +568,102 @@ is claimed. Parent owns execution, measured diagnosis and any ensuing solver fix
   `make dev-check`; preserve raw logs. Full end-to-end seed-independent plane
   gate remains `cargo test --release --test planes
   symmetric_geometry_is_seed_independent_end_to_end -- --ignored --nocapture`.
+
+### A06 C3 handoff — 2026-11-16 (UNVERIFIED)
+
+- Dedicated branch `task/C3-a06-topology`, worktree
+  `runs/worktrees/C3-a06-topology`, from main f642400. Main stays main;
+  existing untracked request files and all other worktrees preserved.
+- Applied vorona-rust-container. Machine proof: Darwin
+  Spookys-MacBook-Pro-2.local 25.6.0 arm64; docker ps included Vorona-dev.
+  Container cargo fmt ONLY; no builds/tests/official checks run by this child.
+- New `rectified::build(surface, params)` is the C3 entry point for A06.
+  Legacy seeds/topology/sidecount and generate's unsupported/pending A06
+  guard remain unchanged. C4 must explicitly call the new entry point;
+  there is no silent A05 fallback or manufacturing success for empty geometry.
+- Derived spacing = 2.3 * min_triangle_edge. Physical arc row pitch =
+  spacing*sqrt(3)/2 (routine resolution consistent with reference prototype).
+  Counts = round(local circumference/spacing), minimum 3, independently per
+  row; no legacy side-set, defect, size-variation, or target-size constraints.
+  Two auxiliary padding rings on each end for both rim styles. Outermost
+  padding rings stay level to preserve the strict periodic hull rule.
+  Other sites jitter independently within +/-0.1*randomness of angular/row
+  spacing; no extra RNG stream, no unordered output.
+- Auto base resolved per actual seed using outward-convex-positive principal
+  curvature in Surface; formula spacing^2/16*max(k1,k2,0), no search.
+  Symmetric relief repeats b+[0,D/2,D] by row; positive randomness uses
+  independent uniform [b,b+D] (randomness scales position jitter, not relief
+  amplitude per A06 section2.6). Depth0 consumes no relief draws.
+  Support queries use the existing clamped endpoint radius/curvature and
+  cylindrical conformal extension, matching established C3 support convention.
+- Rectification stores sorted-edge corner IDs, cyclic polygon/triangle corner
+  lists, stable polygon-then-triangle piece IDs, and exact incident pieces.
+  Every non-open corner has four pieces; only outermost padding edges can
+  remain open (three pieces), including hard rejection of interior open edges.
+  Rows report count, predicted width, exceeds_blank; C3 reports derived
+  seed_spacing, per-seed base and base min/median/max internally. No public
+  schema/output changes; actual sizes require C4/C5.
+- Read A06 rereview and symmetry-repair WIP findings. Curvature sign is made
+  explicit in Surface docs. Rotational seed rows are exact; later C4 must
+  preserve symmetry with row-representative unknowns (not independent fits).
+- OWNER DECISION still needed before C4/C6: with per-seed auto bases, which
+  b defines a corner's hard lower band? A06 rereview suggests max(b_i,b_j),
+  but approved contract does not specify. C3 does not evaluate corner geometry
+  or choose this hard limit. No C3 implementation blocker inferred.
+- Acceptance -> `core/tests/rectified.rs`:
+  counts, four-valent incidence reconstructed independently from pieces,
+  per-row counts, bounds, symmetric relief and serialized determinism on
+  cylinder/cone/vase, r=0/.5/1, seeds1..3 ->
+  `counts_four_valence_and_determinism_across_profiles`;
+  exact cylinder auto formula, zero depth, numeric base, irrelevant legacy
+  knobs and invalid min edge ->
+  `cylinder_curvature_base_smooth_numeric_and_legacy_knobs`;
+  shifted chart cut leaves corners, triangles and cyclic polygon incidence
+  unchanged -> `periodic_cut_does_not_change_rectified_incidence`;
+  convex sphere / saddle waist curvature signs and exact seed row symmetry ->
+  `signed_curvature_and_row_symmetry`.
+- All new tests UNRUN; parent owns official make dev-check and Claude review.
+  C4/C5 geometry, public report field/schema migration, C6, commits, merge and
+  push are explicitly not performed. Legacy tests unchanged.
+
+### A06 Mac-review required fixes — 2026-11-16
+
+- Preserved inherited dirty C3 work; no commit, merge, push, C4/C6, Python,
+  public schema or contract edits. Applied vorona-rust-container; all Rust
+  commands below ran in Vorona-dev at this worktree's /src/.../core path.
+- Principal curvature now uses signed tangent-angle differences everywhere,
+  clamping s BEFORE constructing the difference window. No division by axial
+  tangent and no zero-width window for finite support-row inputs. Gaussian
+  curvature's existing C1 estimator is unchanged. Added a sampled circle arc
+  whose horizontal tangent lies BETWEEN original vertices: 2001 evaluations
+  retain the analytic meridian curvature within .004/in; support queries at
+  -.05 and L+.05 exactly equal endpoint queries. Documented valid-input/failure
+  semantics on principal_curvatures.
+- Aligned rim/support handling with legacy C3: auxiliary is a ROW property;
+  both support rows and exact physical-rim rows stay level in s, and ordinary
+  interior jitter is clamped inside (0,L). Angular jitter remains bounded.
+  Wrapped tiny-negative u rounding to exactly TAU is normalized to zero.
+  This supersedes the earlier note that inner support rows jitter vertically.
+- Expanded seam test to cylinder/cone/vase, randomness0/.5/1 and four cuts
+  (.731, .123456789, pi, 5.9). The single original cut passed, but expanded
+  tests reproduced different cone/vase diagonal incidence before the fix.
+  Added A06-only Topology::build_a06: after ordinary Delaunay extraction,
+  convex cocircular quadrilaterals (relative incircle tolerance1e-12) choose
+  the lexicographically smaller sorted INTEGER seed-pair diagonal. Repeated
+  flips strictly decrease the integer edge set with a fixed n^2 cap; cap
+  exhaustion is an error. Coordinates are NOT perturbed; legacy build and
+  its callers are unchanged. Rectified build uses this explicit entry point.
+  Tolerance classifies numerical ties only, not a geometry relaxation in C4.
+- Added Euler annulus/count checks (V+F=E; rectified corners=original edges),
+  symmetric seed-independence and exact row symmetry on all three profiles,
+  auxiliary/rim classification and in-band jitter checks, plus rejection of
+  voronoi, negative depth, NaN randomness and invalid rim style.
+- Focused container verification PASSED: cargo fmt; cargo test --test rectified
+  (6 tests); cargo clippy --all-targets -- -D warnings. Raw logs in this worktree:
+  runs/logs/C3-a06-review-fixes-tests.log and
+  runs/logs/C3-a06-review-fixes-clippy.log. These are NOT official dev-check or
+  numerical acceptance; parent owns both and full certification.
+- No true C3 implementation blocker found. Prior unspecified per-corner lower
+  relief base and C4 solving/face winding decisions remain outside this task.
+  Mac review is first check only: NO merge without Claude-in-chat review AND
+  explicit owner go-ahead, per latest owner process.

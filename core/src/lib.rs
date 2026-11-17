@@ -8,6 +8,7 @@ pub mod pieces;
 pub mod planes;
 #[cfg(feature = "python")]
 mod py;
+pub mod rectified;
 pub mod rims;
 pub mod seeds;
 pub mod sidecount;

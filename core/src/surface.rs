@@ -192,6 +192,21 @@ impl Surface {
         let (i, t) = self.interval(s);
         self.second[i] + t * (self.second[i + 1] - self.second[i])
     }
+    /// Principal curvatures (inverse inches), positive for outward convexity.
+    /// Uses the signed tangent-angle derivative, avoiding division by a vanishing
+    /// axial tangent at lips/shoulders. Finite s is clamped (including support
+    /// rows); cannot fail for a valid Surface. Nonfinite s is unsupported.
+    pub fn principal_curvatures(&self, s: f64) -> [f64; 2] {
+        let s = s.clamp(0.0, self.length());
+        let [_, dy] = self.tangent(s);
+        let a = (s - MAX_STEP).max(0.0);
+        let b = (s + MAX_STEP).min(self.length());
+        let ta = self.tangent(a);
+        let tb = self.tangent(b);
+        let meridian =
+            -(ta[1] * tb[0] - ta[0] * tb[1]).atan2(ta[0] * tb[0] + ta[1] * tb[1]) / (b - a);
+        [dy / self.r(s), meridian]
+    }
     /// Gaussian curvature in inverse square inches at clamped s inches.
     pub fn gaussian_curvature(&self, s: f64) -> f64 {
         -self.d2r(s) / self.r(s)
