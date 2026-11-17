@@ -110,7 +110,7 @@ Profiles: cylinder 18 × 60, cone 9 → 6, vase bulge. Settings as section 3.
 - [ ] Smooth (`depth = 0`): all three pass every limit and closure.
 - [ ] Random relief `depth = 1.0`, seeds 1..10: all three pass (multi-start allowed, reported).
 - [ ] Symmetric (`randomness = 0`, `depth = 1.0`): all three pass, rotational gate (equal spacing and
-      size per row within 1e-6).
+      size per gated row within 1e-6; owner count-transition exception §8.9).
 - [ ] `depth = 1.5`: report only.
 - [ ] Every polygon flat (|corner-to-plane| ≤ 1e-6 in), every corner 4-valent in band, determinism.
 - [ ] Back-gap and corner-distance reports present; runtime per case reported (budget 90 s).
@@ -163,7 +163,7 @@ disagree, this section wins.
 - This **supersedes the A05 owner decision of 2026-11-12** ("depth never varies per point") **for
   `voronoi_triangles` only**. Per-seed random depth is allowed here because no three-plane corners
   exist in this pattern (corners lie on two-plane lines).
-- Symmetric mode (`randomness = 0`): every polygon in a row identical; rows use the A05 three-row
+- Symmetric mode (`randomness = 0`): every polygon in a gated row identical (owner exception §8.9); rows use the A05 three-row
   depth pattern scaled to [b, b + depth] (no two-row alternation).
 - Schema bounds: `depth` ≥ 0 for `voronoi_triangles`; `voronoi` keeps `depth` > 0.
 
@@ -213,3 +213,85 @@ production must solve the two-plane line exactly to meet the ≤ 1e-6 in flatnes
 - Full §5 acceptance replaces the A05 gates for `voronoi_triangles`. A05 regressions remain required for
   `voronoi`. Update AGENTS.md §5.6 when A06 C4 lands (new matrix, waivers).
 - C6 stays on hold until A06 C3–C5 merge.
+
+## 8.9 Owner-approved symmetric count-transition exception (2026-11-17)
+
+Jerry's decision supersedes the blanket per-row identity requirement in §8.2
+and the symmetric rotational gate in §5, for `voronoi_triangles` only:
+
+- A row whose seed count equals **both** immediate neighbouring row counts is
+  solved using one row representative and copied by its rigid periodic rotation.
+  The geometric rotational gate remains **1e-6 inch**, including equal spacing
+  and piece size. No independent full-row solve followed by averaging.
+- A row at a seed-count transition is solved freely, deterministically from
+  `seed`. It carries **no symmetry claim**. The gate/report identifies every
+  such row individually with its count and both neighbouring counts.
+- Outermost padding rows have no pair of neighbours and carry no per-row
+  symmetry claim; physical rows retain two support rows from C3.
+- This exception changes no §3 limit, exact two-plane corner construction,
+  per-seed depth/base rule, deterministic multi-start requirement, runtime
+  budget, A05 regression, or C5/closure/owner review gate.
+
+## 9. Owner-approved addendum — small symmetric stones, constant rows (2026-11-17)
+
+Approved by Jerry in chat; source: `docs/requests/008-a06-addendum-2.md`.
+Applies only to `pattern = "voronoi_triangles"`. Where this section and sections 1–8
+disagree, this section wins. Resolves the C4 unequal-count row transition blocker.
+
+## 9.1 Why
+Owner review of prototypes (2026-11-17): small stones with constant rows and symmetric relief look
+right on cylinder, cone and vase; large stones looked coarse, and random relief on small stones failed.
+
+## 9.2 Stone size (replaces §3 `min_triangle_edge` default and §8.3 seed spacing)
+| Setting | Default | Meaning |
+|---|---|---|
+| `max_polygon_edge` (new) | 3.0 in | every polygon side **and** every triangle side (they are the same edges) |
+| `min_triangle_edge` | **1.5 in** (was 4.0) | every triangle side, including the base |
+| `min_edge` | 1.0 in | polygon sides (unchanged) |
+| `min_corner_angle_deg` | 30 | unchanged |
+| `blank_usable` | 11.5 in | unchanged |
+Triangles are isosceles in the symmetric layout: symmetric about their own vertical centreline, base
+and legs may differ. Polygons are likewise symmetric about their vertical centreline.
+
+## 9.3 Row layout (replaces §2.5 per-row counts and §8.4 C2 counts)
+1. **Constant count, constant row height.** Choose one seed count `n` per row for the whole surface and
+   one physical row height `h` (arc length along the profile). Stones narrow or widen with the radius;
+   rows stay level. Width per row `w(s) = 2π r(s) / n`.
+2. **Choosing n and h (deterministic):** among integer `n ≥ 3`, take those for which every row satisfies,
+   for the rectified triangles (base `w/2`, legs `½·√(w²/4 + h²)`):
+   base ≥ `min_triangle_edge`, base and legs ≤ `max_polygon_edge`, apex angle ≥ `min_corner_angle_deg`,
+   piece fits `blank_usable`. Choose `h = (√3/2)·w(median row)` clipped into the feasible range; pick the
+   feasible `n` whose median-row triangle is closest to equilateral; tie → smaller `n`. Report n, h and
+   the per-row base/leg range.
+3. **If no single n is feasible:** split the surface into the fewest stretches of constant count; at each
+   change the count changes by a step `g` (default 2, setting `count_step`) and the 5/7 pairs sit at `g`
+   equally spaced angles. Report every change (row, old → new count). Each stretch keeps constant row
+   height.
+4. Prototype reference: cylinder 9 in radius → n = 10; cone 9 → 6 in → n = 10, h = 4.5 in; vase 6–10 in →
+   n = 11, h = 4.5 in (no count change needed).
+
+## 9.4 Relief
+- Default `randomness = 0` (symmetric): row depth pattern 0, D/2, D (§8.2) on top of the auto base;
+  every stone in a row identical.
+- Default `depth` = **0.1 × `max_polygon_edge`** (0.3 in at 3 in; prototype passed at 0.25 in). Explicit
+  `depth` overrides.
+- **Random relief (`randomness > 0`) is experimental:** allowed, reported, never a merge gate until
+  reworked. Prototype: 0.25 in random relief on 3 in stones failed (torn pieces).
+
+## 9.5 Symmetric solve (replaces the "solve one row and copy" rule where counts change)
+- Constant-count stretches: solve one representative stone per row (2 tilts) plus its corner slides,
+  copy by exact rotation `2π/n`. Gate: equal spacing and equal size per row within 1e-6.
+- At a count change (9.3.3): solve one sector of angle `2π/g` and copy `g` times; gate the `g`-fold
+  repeat within 1e-6.
+
+## 9.6 Acceptance (replaces §5 matrix for this pattern)
+Required, all limits + closure + flatness + determinism + rotational gate:
+- Cylinder 18×60, cone 9→6, vase bulge: smooth (`depth = 0`) and symmetric relief at the default depth.
+- Report only: symmetric relief at 2× default depth; random relief at default depth, seeds 1..3.
+- STEP export of all six required cases for owner review.
+
+## 9.7 Prototype reproduction
+`docs/prototypes/A06_tri_proto.py` is superseded for this section by the variant used in chat
+(`COUNT=constrow:N:H`, `TMIN`, `MAXE`, `RELIEF=rows`, `BASE=auto`); results: cone n=10 h=4.5 smooth
+PASS (sides 1.95–2.70 in, taper ≤ 11°), relief 0.25 PASS; vase n=11 h=4.5 smooth PASS (sides 1.69–2.92 in,
+corners −0.06..+0.21 in), relief 0.25 PASS (taper ≤ 13°, back gap median 0.07 in).
