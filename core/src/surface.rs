@@ -151,6 +151,10 @@ impl Surface {
     }
 
     /// Total profile arc length in inches; cannot fail.
+    /// Exact profile-vertex arc positions, inches, for A06 row-layout bounds.
+    pub fn layout_knots(&self) -> Vec<f64> {
+        self.arcs.clone()
+    }
     pub fn length(&self) -> f64 {
         *self.arcs.last().unwrap()
     }

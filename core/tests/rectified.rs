@@ -11,7 +11,8 @@ fn input() -> CoreInput {
     ))
     .unwrap();
     i.params.pattern = Pattern::VoronoiTriangles;
-    i.params.min_triangle_edge = 4.0;
+    i.params.min_triangle_edge = 1.5;
+    i.params.max_polygon_edge = 3.0;
     i.params.depth = 1.0;
     i.params.relief_base = serde_json::from_str("\"auto\"").unwrap();
     i
@@ -93,12 +94,16 @@ fn counts_four_valence_and_determinism_across_profiles() {
                     serde_json::to_vec(&t).unwrap(),
                     serde_json::to_vec(&rectified::build(&s, &i.params).unwrap()).unwrap()
                 );
-                assert!((t.seed_spacing - 9.2).abs() < 1e-12);
+                let count = t.rows[0].count;
                 for row in &t.rows {
-                    assert_eq!(
-                        row.count,
-                        (std::f64::consts::TAU * s.r(row.s) / 9.2).round().max(3.0) as usize
-                    );
+                    assert_eq!(row.count, count);
+                    assert!(row.height > 0.0);
+                    if (0.0..=s.length()).contains(&row.s) {
+                        assert!(row.triangle_base >= i.params.min_triangle_edge - 1e-9);
+                        assert!(row.triangle_base <= i.params.max_polygon_edge + 1e-9);
+                        assert!(row.triangle_leg >= i.params.min_triangle_edge - 1e-9);
+                        assert!(row.triangle_leg <= i.params.max_polygon_edge + 1e-9);
+                    }
                 }
                 for (k, site) in t.delaunay.tiles.iter().enumerate() {
                     assert!(
@@ -122,7 +127,7 @@ fn cylinder_curvature_base_smooth_numeric_and_legacy_knobs() {
     i.params.depth = 0.0;
     let a = rectified::build(&s, &i.params).unwrap();
     for b in &a.relief_bases {
-        assert!((*b - 9.2_f64.powi(2) / 144.0).abs() < 1e-12);
+        assert!((*b - a.seed_spacing.powi(2) / 144.0).abs() < 1e-12);
     }
     assert!(a
         .delaunay
@@ -249,4 +254,31 @@ fn invalid_settings_are_rejected() {
     for p in bad {
         assert!(rectified::build(&s, &p).is_err());
     }
+}
+
+#[test]
+fn section9_defaults_and_explicit_zero() {
+    let mut v: serde_json::Value = serde_json::from_str(include_str!(
+        "../../tests/fixtures/core_input_cylinder.json"
+    ))
+    .unwrap();
+    v["params"]["pattern"] = serde_json::json!("voronoi_triangles");
+    for key in [
+        "depth",
+        "randomness",
+        "min_triangle_edge",
+        "max_polygon_edge",
+        "count_step",
+    ] {
+        v["params"].as_object_mut().unwrap().remove(key);
+    }
+    let i: CoreInput = serde_json::from_value(v.clone()).unwrap();
+    assert!((i.params.depth - 0.3).abs() < 1e-15);
+    assert_eq!(i.params.randomness, 0.);
+    assert_eq!(i.params.count_step, 2);
+    assert_eq!(i.params.min_triangle_edge, 1.5);
+    v["params"]["depth"] = serde_json::json!(0);
+    v["params"]["max_polygon_edge"] = serde_json::json!(4.);
+    let i: CoreInput = serde_json::from_value(v).unwrap();
+    assert_eq!(i.params.depth, 0.);
 }
