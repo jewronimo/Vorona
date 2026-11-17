@@ -12,6 +12,22 @@ mkdir -p "$logdir"
     git status --short
 } > "$logdir/host-provenance.log"
 printf 'logs=%s\n' "$logdir"
+worker=
+cleanup() {
+    result=$?
+    trap - EXIT HUP INT TERM
+    docker exec -w "$workdir" "$container" python scripts/acceptance_control.py stop "$stamp" || result=1
+    if [ -n "$worker" ]; then
+        wait "$worker" 2>/dev/null || true
+    fi
+    exit "$result"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 docker exec -e "ACCEPTANCE_STAMP=$stamp" \
     -e "ACCEPTANCE_LOGDIR=$workdir/runs/logs/acceptance-$stamp" \
-    -w "$workdir" "$container" bash scripts/acceptance.sh
+    -w "$workdir" "$container" python scripts/acceptance_control.py run "$stamp" &
+worker=$!
+wait "$worker"

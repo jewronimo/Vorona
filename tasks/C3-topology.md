@@ -27,6 +27,25 @@ where every interior tile's side count is in the allowed set.
 
 ## Agent notes
 
+### Acceptance lifecycle repair — 2026-11-16
+
+- Earlier acceptance runs 20261117T020714Z-77347 and
+  20261117T021853Z-80128 overlapped; both are invalid evidence and were
+  stopped by the owner. Do not cite their numerical results as acceptance.
+- Host acceptance now installs EXIT/HUP/INT/TERM traps. A container-side
+  Python supervisor holds an exclusive nonblocking flock on
+  /tmp/vstone-acceptance.lock across all worktrees, and owns the acceptance
+  process group. Cancellation kills that group before releasing the lock;
+  no pkill or pgrep is required. A per-run cancellation marker also handles
+  termination arriving before container startup. SIGKILL of the host cannot
+  be trapped.
+- Container lifecycle verification: runs/logs/C3-a06-harness-lifecycle.log
+  (overlap refusal, descendant termination, lock reuse, early cancellation).
+- Parent owns the sequential official dev-check and single fresh acceptance;
+  their raw logs remain under this worktree's runs/logs directory.
+- No merge: Claude review in chat AND Jerry's explicit go-ahead are required.
+  The Mac-side reviewer is only a first check. C6 remains on hold.
+
 ### Implementation handoff (2026-11-10; not certified)
 - Added internal Rust modules seeds/topology/sidecount and integration tests.
   No JSON contract, Python, original checkout, branch or commit changes.
