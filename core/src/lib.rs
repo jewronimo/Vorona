@@ -3,7 +3,9 @@ pub mod assembly;
 pub mod closure;
 pub mod depth;
 pub mod feasibility;
+pub mod flat;
 pub mod model;
+pub mod nest;
 pub mod numbering;
 pub mod pieces;
 pub mod planes;
@@ -22,7 +24,7 @@ pub mod validate;
 use model::*;
 use sha2::{Digest, Sha256};
 
-/// Generate inch-valued C5 pieces; C6/C7 pending gates prevent manufacturing acceptance.
+/// Generate inch-valued pieces with validation, flat transforms and blank nesting.
 pub fn generate(input: &CoreInput) -> CoreOutput {
     run(input, false)
 }
@@ -175,15 +177,7 @@ fn run(input: &CoreInput, only: bool) -> CoreOutput {
                                     out.stats.max_bevel_deg.max(edge.bevel_deg);
                             }
                         }
-                        // C6 passed is independent of C7; no success/manufacturing
-                        // claim while the layout transforms are placeholders.
-                        out.validation.checks.push(Check {
-                            id: "C7-pending".into(),
-                            name: "layout and nesting pending".into(),
-                            passed: false,
-                            failures: vec!["not certified for manufacturing".into()],
-                        });
-                        out.validation.passed = false;
+                        finish_layout(&mut out, p);
                     }
                 }
             } else {
@@ -216,7 +210,10 @@ fn run(input: &CoreInput, only: bool) -> CoreOutput {
                             }
                         }
                         out.status = "failed_validation".into();
-                        out.message=format!("C5 pieces built at rim heights {:?}; C6 validation/numbering and C7 layout pending.",a.rim_heights);
+                        out.message = format!(
+                            "C5 pieces built at rim heights {:?}; C6 validation/numbering pending.",
+                            a.rim_heights
+                        );
                         out.validation.checks.push(Check {
                             id: "C5-rejections".into(),
                             name: "every removed/rejected tile".into(),
@@ -224,11 +221,12 @@ fn run(input: &CoreInput, only: bool) -> CoreOutput {
                             failures: a.rejections,
                         });
                         out.validation.checks.push(Check {
-                            id: "C6-C7-pending".into(),
-                            name: "validation, numbering, layout and nesting pending".into(),
+                            id: "C6-pending".into(),
+                            name: "legacy validation and numbering pending".into(),
                             passed: false,
                             failures: vec!["not certified for manufacturing".into()],
                         });
+                        finish_layout(&mut out, p);
                     }
                 }
             }
@@ -292,4 +290,41 @@ fn json_run(s: &str, only: bool) -> String {
         output.provenance.input_sha256 = format!("{:x}", Sha256::digest(s.as_bytes()));
     }
     serde_json::to_string(&output).expect("finite output")
+}
+
+fn finish_layout(out: &mut CoreOutput, p: &Params) {
+    let result = out
+        .pieces
+        .iter_mut()
+        .try_for_each(|piece| flat::flatten(piece, p.thickness))
+        .and_then(|()| nest::pack(&mut out.pieces, p.blank_size, p.blank_usable, p.nest_gap));
+    let failures = match result {
+        Ok(blanks) => {
+            out.blanks = blanks;
+            out.stats.blanks_used = out.blanks.len() as u32;
+            vec![]
+        }
+        Err(error) => vec![error],
+    };
+    out.validation.checks.push(Check {
+        id: "C7-layout".into(),
+        name: "flat transforms and nesting".into(),
+        passed: failures.is_empty(),
+        failures,
+    });
+    out.validation.passed = out.validation.checks.iter().all(|c| c.passed);
+    out.status = if out.validation.passed {
+        "ok"
+    } else {
+        "failed_validation"
+    }
+    .into();
+    out.message = format!(
+        "{} pieces; {} blanks; {} checks failed. {}",
+        out.pieces.len(),
+        out.blanks.len(),
+        out.validation.checks.iter().filter(|c| !c.passed).count(),
+        out.message
+            .replace("C7 layout/nesting pending.", "C7 layout/nesting evaluated.")
+    );
 }
