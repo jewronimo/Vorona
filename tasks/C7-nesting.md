@@ -80,3 +80,32 @@ corrupted placement caught by the regression),
 No nesting algorithm, public contract or dependency changes. These are development
 checks, not official dev-check or acceptance certification. Parent still owns
 those gates, six-case follow-up and merge review; checklist remains pending.
+
+### Six-case full-path measurements — 2026-11-18
+
+`scripts/c7_measure.py` calls `vstone.core.generate` twice per case. Raw outputs,
+repeat outputs, full status/messages, validation records and summaries are in
+`runs/logs/C7-full-path/`. Timings are the first generate call in seconds, not
+build or measurement time. Area is total outer-face footprint area; utilisation
+is that area divided by 11.5² times blanks. The rounded-up area bound ignores
+spacing, shape and inner overhang, so is a theoretical lower bound, not an
+achievable nesting claim. Polygon-distance checks conservatively use the convex
+hull of both projected outer and inner faces.
+
+| Case | Pieces | Blanks | Area util. | Lower bound | Pieces/blank min/median/max | Generate s |
+| --- | ---: | ---: | ---: | ---: | --- | ---: |
+| cylinder smooth | 380 | 50 | 51.32% | 26 | 4/4/16 | 0.35 |
+| cylinder symmetric 0.25 | 380 | 49 | 51.70% | 26 | 4/4/20 | 13.40 |
+| cone smooth | 450 | 41 | 52.23% | 22 | 7/10/20 | 0.43 |
+| cone symmetric 0.25 | 460 | 41 | 51.42% | 22 | 6/10/21 | 3.64 |
+| vase smooth | 286 | 31 | 53.53% | 17 | 4/8/20 | 0.27 |
+| vase symmetric 0.25 | 286 | 30 | 54.67% | 17 | 4/7/24 | 33.71 |
+
+All six: status `ok`, message begins “N pieces; M blanks; 0 checks failed”
+(full message in per-case summary); R-VA-1..8 and C7-layout pass. Independent
+checks: all footprints inside the usable square; minimum same-blank polygon
+clearance ≥ 0.25 in within 1e-9; outer z=0 and inner z=-0.375 within 1e-9;
+full output exactly equal on repeat. Maximum observed z error < 4.87e-11 in.
+The six runs used the same production code as `43f12c3`; subsequent `44a57f6`
+adds only independent tests and card notes. Acceptance matrix remains required
+before merge; no C7 merge.
