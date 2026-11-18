@@ -15,12 +15,12 @@ Run every check, number the pieces, fill `validation`, `stats`, `status`, `messa
   (e.g. `"134 pieces, all checks passed."` or `"3 checks failed: edge_length (P012, P047) …"`).
 
 ## Acceptance
-- [ ] Ring12: all checks pass.
-- [ ] Each check has a test with a hand-broken input that makes exactly that check fail and
-      names the right piece ids.
-- [ ] Numbering: on the cylinder, P001 is the bottom row tile whose centroid angle is nearest
-      0 going counter-clockwise from +X seen from +Y; ids increase around then up.
-- [ ] Every `neighbor` refers to an existing id, and neighbour relations are symmetric.
+- [x] Ring12: all checks pass. (`runs/logs/C6-numbering-review-after.log`, `ring_checks_and_numbering`)
+- [x] Each check has a test with a hand-broken input that makes exactly that check fail and
+      names the right piece ids. (`runs/logs/C6-numbering-review-after.log`, `each_check_names_its_broken_piece`)
+- [x] Numbering: on the cylinder, P001 is the bottom row tile whose centroid angle is nearest
+      0 going counter-clockwise from +X seen from +Y; ids increase around then up. (`runs/logs/C6-numbering-review-after.log`; full-path outputs `runs/logs/C6-full-path/`)
+- [x] Every `neighbor` refers to an existing id, and neighbour relations are symmetric. (`runs/logs/C6-numbering-review-after.log`; full-path outputs `runs/logs/C6-full-path/`)
 
 ## Agent notes
 
