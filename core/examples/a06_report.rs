@@ -1,7 +1,7 @@
 //! A06 native C3-C5 physical-band diagnostics; C6/C7 manufacturing gates held.
 use vstone_core::{
     model::{CoreInput, Pattern},
-    rectified, rectified_assembly, rectified_planes,
+    rectified, rectified_assembly,
     surface::Surface,
 };
 fn main() {
@@ -34,7 +34,6 @@ fn main() {
             std::process::exit(2)
         }
     };
-    let symmetry_policy = rectified_planes::symmetry_policy(&topology, &input.params);
     eprintln!(
         "{}",
         serde_json::json!({"event":"case_start","params":input.params,"rows":topology.rows})
@@ -65,9 +64,17 @@ fn main() {
     } else {
         None
     };
+    // Use the selected phase's final measured geometry, not pre-solve classification.
+    // An absent final geometry must not be presented as a measured pass.
+    let symmetry_policy = assembly.as_ref().ok().map(|a| &a.symmetry_rows);
     let accepted = determinism != Some(false)
         && assembly.as_ref().is_ok_and(|a| {
-            a.closure.is_ok() && a.solid_errors.is_empty() && a.violations.is_empty()
+            a.closure.is_ok()
+                && a.solid_errors.is_empty()
+                && a.violations.is_empty()
+                && a.symmetry_rows
+                    .iter()
+                    .all(|r| !r.required || r.passed == Some(true))
         });
     println!(
         "{}",

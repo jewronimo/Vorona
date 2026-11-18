@@ -17,7 +17,7 @@ Turn planes into closed stone pieces: outer face, inner face, side quads, bevel 
 - [x] A2 `thickness_setting_and_reflex_offset`: configured thickness including thicker stone; simple reflex face supported, inner orientation preserved (A05).
 - [x] A3 `collapsed_thick_offset_returns_failure`: collapsed inner polygon explicitly fails, never panics (A05 R-VA-4).
 - [x] A4 `level_saw_and_sliver_are_explicit`: horizontal outer AND inner rim edges; real minimum enclosing square, not diameter (R-RM-1).
-- [x] A5 `placement_precedes_rejection`: choose cut height before cutting to avoid all undersized partials; fallback reports every rejected tile (owner “no slivers: shift pattern before cutting”, R-RM-2).
+- [x] A5 `placement_precedes_rejection`: shift pattern phase with cuts fixed at 0/H to avoid undersized partials; fallback reports every rejected tile (owner “no slivers: shift pattern before cutting”, R-RM-2).
 - [x] A6 `disconnected_reflex_clip_rejected`: disconnected reflex half-space result explicitly rejected before solid construction; whole removal gives square exposed edges (A05 / R-ST-5).
 - [x] A7 `topology_adapter_metadata_and_cache`: deterministic topology/shared-corner adapter and CoreOutput geometry metadata, configured thickness, volume sanity and explicit pending C6/C7 validation.
 
@@ -73,7 +73,7 @@ vorona-rust-container skill; all Rust commands in Vorona-dev only.
 - FIRST replaced acceptance with seven named A05/owner-mapped regressions.
 - Real minimum enclosing square: reuses C4 exact support-change/analytic candidate
   enumeration after orthonormal projection into the face plane. No diameter proxy.
-- Before cutting, choose each level cut height deterministically, requested height
+- **Obsolete historical experiment (superseded by fixed 0/H cuts and phase search):** Before cutting, choose each level cut height deterministically, requested height
   first, then 128 inward samples over one target pitch (capped at profile-height/4).
   Select fewest failed partials, then least displacement. Bottom is considered
   before top, and top placement evaluates bottom-clipped geometry. This is a
@@ -462,3 +462,7 @@ These are focused development runs, NOT the official acceptance invocation.
   avoiding expensive full multistart solves at unusable saw/pattern placements.
 - No official dev-check/acceptance, commit or merge performed. All existing dirty
   work preserved. C6/C7/manufacturing certification and owner STEP review held.
+
+### Final A06 review update
+
+Cuts remain fixed at 0 and H; deterministic pattern-phase search within one row height replaces the obsolete cut-height placement above. Six required cases passed closure and deterministic repeats; STEP exports: `runs/logs/a06-fixed-rims/step/`. Default relief depth is 0.25 in.

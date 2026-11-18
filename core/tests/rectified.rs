@@ -277,12 +277,15 @@ fn section9_defaults_and_explicit_zero() {
         v["params"].as_object_mut().unwrap().remove(key);
     }
     let i: CoreInput = serde_json::from_value(v.clone()).unwrap();
-    assert!((i.params.depth - 0.3).abs() < 1e-15);
+    assert!((i.params.depth - 0.25).abs() < 1e-15);
     assert_eq!(i.params.randomness, 0.);
     assert_eq!(i.params.count_step, 2);
     assert_eq!(i.params.min_triangle_edge, 1.5);
-    v["params"]["depth"] = serde_json::json!(0);
+    // The relief default is fixed inches, independent of the stone-size knob.
     v["params"]["max_polygon_edge"] = serde_json::json!(4.);
+    let resized: CoreInput = serde_json::from_value(v.clone()).unwrap();
+    assert_eq!(resized.params.depth, 0.25);
+    v["params"]["depth"] = serde_json::json!(0);
     let i: CoreInput = serde_json::from_value(v).unwrap();
     assert_eq!(i.params.depth, 0.);
 }

@@ -1116,3 +1116,7 @@ with byte-identical repeat; .25 cone 3.638s first / 7.270s including repeat;
 .25 vase 34.898s first / 69.835s including repeat. See final C5 note and
 `runs/logs/a06-fixed-rims/final-six-summary.json`. Final solver tests 10/10,
 piece tests 8/8, focused clippy pass. No official gate or manufacturing claim.
+
+### Final A06 review update
+
+The six required cases passed with deterministic repeats and fixed cuts at 0/H using deterministic pattern-phase search. STEP exports: `runs/logs/a06-fixed-rims/step/`. Default relief depth is 0.25 in. Earlier acceptance and rim-policy status notes are historical.

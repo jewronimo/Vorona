@@ -118,7 +118,7 @@
         "depth": {
           "type": "number",
           "minimum": 0,
-          "default": 0.3
+          "default": 0.25
         },
         "max_corner_angle_deg": {
           "type": "number",

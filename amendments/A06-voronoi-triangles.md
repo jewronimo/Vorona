@@ -290,7 +290,7 @@ unchanged.
 ## 9.4 Relief
 - Default `randomness = 0` (symmetric): row depth pattern 0, D/2, D (§8.2) on top of the auto base;
   every stone in a row identical.
-- Default `depth` = **0.1 × `max_polygon_edge`** (0.3 in at 3 in; prototype passed at 0.25 in). Explicit
+- Default `depth` = **0.25 in**. Explicit
   `depth` overrides.
 - **Random relief (`randomness > 0`) is experimental:** allowed, reported, never a merge gate until
   reworked. Prototype: 0.25 in random relief on 3 in stones failed (torn pieces).
@@ -304,9 +304,9 @@ unchanged.
 ## 9.6 Acceptance (replaces §5 matrix for this pattern)
 Required, all limits + closure + flatness + determinism + rotational gate:
 - Cylinder 18×60, cone 9→6, vase bulge: smooth (`depth = 0`) and symmetric relief at **depth = 0.25 in** (owner exact prototype parity request;
-  the configured default in §9.4 remains 0.3 in).
+  matching the configured default of 0.25 in in §9.4).
 - Report only: symmetric relief at 0.5 in; random relief at 0.25 in, seeds 1..3.
-  These follow twice/the requested 0.25 in reference, not the 0.3 in configured default.
+  These use twice the configured 0.25 in default for symmetric relief and the default itself for random relief.
 - STEP export of all six required cases for owner review.
 
 ## 9.7 Prototype reproduction

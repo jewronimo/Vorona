@@ -143,7 +143,7 @@ impl From<ParamsWire> for Params {
             bevel_cap_deg: w.bevel_cap_deg,
             depth: w.depth.unwrap_or(match w.pattern {
                 Pattern::Voronoi => 1.5,
-                Pattern::VoronoiTriangles => 0.1 * w.max_polygon_edge,
+                Pattern::VoronoiTriangles => 0.25,
             }),
             max_corner_angle_deg: w.max_corner_angle_deg,
             min_bounding_square: w.min_bounding_square,

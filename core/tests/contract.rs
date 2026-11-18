@@ -333,7 +333,7 @@ fn a06_pattern_defaults_and_native_dispatch() {
     assert!(validator.is_valid(&raw));
     let default: CoreInput = serde_json::from_value(raw.clone()).unwrap();
     assert_eq!(default.params.pattern, Pattern::VoronoiTriangles);
-    assert!((default.params.depth - 0.3).abs() < 1e-15);
+    assert!((default.params.depth - 0.25).abs() < 1e-15);
     assert_eq!(default.params.min_corner_angle_deg, 30.0);
     assert_eq!(default.params.min_triangle_edge, 1.5);
     assert_eq!(default.params.max_back_gap, 0.5);

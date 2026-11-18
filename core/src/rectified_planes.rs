@@ -1465,7 +1465,7 @@ mod section9_tests {
         .unwrap();
         i.params.pattern = Pattern::VoronoiTriangles;
         i.params.randomness = 0.;
-        i.params.depth = 0.3;
+        i.params.depth = 0.25;
         i.params.min_triangle_edge = 1.5;
         i.params.max_polygon_edge = 3.;
         i.params.min_corner_angle_deg = 30.;
@@ -1516,6 +1516,15 @@ mod section9_tests {
             // Verify support pruning on real projected outer+inner footprints,
             // not only synthetic point clouds (including all padding pieces).
             let g = &evaluated.1;
+            assert!(g.symmetry_rows.iter().all(|r| {
+                !r.required
+                    || (r.rotation_error.is_some()
+                        && r.spacing_error.is_some()
+                        && r.size_error.is_some()
+                        && r.passed.is_some())
+            }));
+            let assembly = crate::rectified_assembly::assemble(&t, g, &s, &p).unwrap();
+            assert_eq!(assembly.symmetry_rows, g.symmetry_rows);
             for (i, ids) in g.polygons.iter().enumerate() {
                 let normal = if i < g.planes.len() {
                     g.planes[i].n

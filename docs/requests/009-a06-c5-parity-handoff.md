@@ -1,4 +1,6 @@
-# A06 C5 owner rim/parity handoff — 2026-11-17 (UNVERIFIED)
+# A06 C5 owner rim/parity handoff — 2026-11-17
+
+**Final status:** fixed design-end cuts at 0 and H; deterministic pattern-phase search within one row height. Six required cases and deterministic repeats passed with closure and no dangling neighbors; STEP exports are in `runs/logs/a06-fixed-rims/step/`. The historical cut-height placement and unverified instructions below are obsolete; they are retained only as experiment history. Default depth is 0.25 in.
 
 Existing dirty task/C4-a06-solver worktree preserved; no commit/merge/push.
 Only container cargo fmt executed. Parent owns all builds, checks, numerical

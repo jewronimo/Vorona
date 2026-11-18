@@ -23,6 +23,8 @@ pub struct Assembly {
     pub pieces: Vec<Piece>,
     pub rim_heights: [f64; 2],
     pub pattern_phase: f64,
+    /// Measured C4 row gates from this selected phase's final geometry.
+    pub symmetry_rows: Vec<crate::rectified_planes::RowGate>,
     pub closure: Result<closure::Certificate, String>,
     pub back_gap: [f64; 3],
     pub per_piece_back_gap: Vec<(String, [f64; 3])>,
@@ -479,6 +481,7 @@ fn assemble_at(
         pieces: output,
         rim_heights: heights,
         pattern_phase: 0.,
+        symmetry_rows: g.symmetry_rows.clone(),
         closure: certificate,
         back_gap: stats(gaps),
         per_piece_back_gap: per_piece,
