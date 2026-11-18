@@ -466,3 +466,13 @@ These are focused development runs, NOT the official acceptance invocation.
 ### Final A06 review update
 
 Cuts remain fixed at 0 and H; deterministic pattern-phase search within one row height replaces the obsolete cut-height placement above. Six required cases passed closure and deterministic repeats; STEP exports: `runs/logs/a06-fixed-rims/step/`. Default relief depth is 0.25 in.
+
+### Shared near-coplanar plane repair — 2026-11-17
+
+Isolated `task/C5-C6-triangles` at `2435e48`: A06 near-coplanar joints use
+edge × mean face normal, giving both owners the same physical side plane (up to
+orientation), including the exact coplanar case. Actual small bevel retained;
+legacy A05 bisectors unchanged. Focused regression verifies both planes and
+inner-offset edge incidence. `runs/logs/C5-C6-targeted.log`: triangle pieces
+8 passed / 1 intentionally ignored; validation 2 passed; focused clippy passed.
+Official dev-check/acceptance and six-case numerical checks remain parent-owned.
