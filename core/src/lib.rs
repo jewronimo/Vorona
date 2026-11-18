@@ -4,6 +4,7 @@ pub mod closure;
 pub mod depth;
 pub mod feasibility;
 pub mod model;
+pub mod numbering;
 pub mod pieces;
 pub mod planes;
 #[cfg(feature = "python")]
@@ -17,6 +18,7 @@ pub mod sidecount;
 pub mod surface;
 pub mod tol;
 pub mod topology;
+pub mod validate;
 use model::*;
 use sha2::{Digest, Sha256};
 
@@ -132,23 +134,29 @@ fn run(input: &CoreInput, only: bool) -> CoreOutput {
                 let result = rectified_assembly::solve_assembly(&surface, p);
                 match result {
                     Err(e) => out.message = e,
-                    Ok(a) => {
+                    Ok(mut a) => {
+                        let renames =
+                            numbering::number(&mut a.pieces, &surface, 2.3 * p.min_triangle_edge);
+                        for violation in &mut a.violations {
+                            if let Some(id) = renames.get(&violation.0) {
+                                violation.0 = id.clone();
+                            }
+                        }
+                        for (id, _) in &mut a.per_piece_back_gap {
+                            if let Some(new) = renames.get(id) {
+                                *id = new.clone();
+                            }
+                        }
+                        // Preserve diagnostics while translating temporary source ids.
+                        for error in &mut a.solid_errors {
+                            for (old, new) in &renames {
+                                *error = error.replace(old, new);
+                            }
+                        }
+                        out.validation = validate::triangles(&a, p);
+                        let failed = out.validation.checks.iter().filter(|c| !c.passed).count();
                         out.status = "failed_validation".into();
-                        out.message = format!("A06 C5 native pieces; C6/C7 held; fixed rims {:?}; pattern phase {} in; back gap min/median/max {:?}; per piece {:?}", a.rim_heights, a.pattern_phase, a.back_gap, a.per_piece_back_gap);
-                        let closure_ok = a.closure.is_ok();
-                        out.validation.checks.push(Check {
-                            id: "A06-C5".into(),
-                            name: "solids, limits and full physical-band closure".into(),
-                            passed: closure_ok
-                                && a.solid_errors.is_empty()
-                                && a.violations.is_empty(),
-                            failures: a
-                                .solid_errors
-                                .into_iter()
-                                .chain(a.violations.iter().map(|v| format!("{v:?}")))
-                                .chain(a.closure.err())
-                                .collect(),
-                        });
+                        out.message=format!("{} pieces; {} C6 checks failed; C7 layout/nesting pending. Back gap min/median/max {:?}; per piece {:?}",a.pieces.len(),failed,a.back_gap,a.per_piece_back_gap);
                         out.pieces = a.pieces;
                         out.stats.piece_count = out.pieces.len() as u32;
                         for piece in &out.pieces {
@@ -160,17 +168,22 @@ fn run(input: &CoreInput, only: bool) -> CoreOutput {
                                     piece.sides.to_string()
                                 })
                                 .or_default() += 1;
+                            out.stats.max_face_depth =
+                                out.stats.max_face_depth.max(piece.face_depth);
                             for edge in &piece.edges {
                                 out.stats.max_bevel_deg =
                                     out.stats.max_bevel_deg.max(edge.bevel_deg);
                             }
                         }
+                        // C6 passed is independent of C7; no success/manufacturing
+                        // claim while the layout transforms are placeholders.
                         out.validation.checks.push(Check {
-                            id: "C6-C7-pending".into(),
-                            name: "validation, numbering, layout and nesting pending".into(),
+                            id: "C7-pending".into(),
+                            name: "layout and nesting pending".into(),
                             passed: false,
                             failures: vec!["not certified for manufacturing".into()],
                         });
+                        out.validation.passed = false;
                     }
                 }
             } else {

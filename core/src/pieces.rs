@@ -47,7 +47,8 @@ pub fn joint(a: &Plane, b: &Plane, neighbor: usize) -> Result<Side, PieceError> 
     })
 }
 /// A06 joint in inches: below one degree half-angle use the face-perpendicular
-/// plane through the shared edge. A05 callers retain `joint` unchanged.
+/// plane through the shared edge and perpendicular to the mean face normal.
+/// Both owners receive the same plane up to sign. A05 remains unchanged.
 /// Rejects invalid planes, nonincident or degenerate shared endpoints.
 pub fn triangle_joint(
     face: &Plane,
@@ -64,7 +65,7 @@ pub fn triangle_joint(
         return joint(face, other, neighbor);
     }
     let edge = v(to) - v(from);
-    let normal = edge.cross(&v(face.n));
+    let normal = edge.cross(&(v(face.n) + v(other.n)));
     if !normal.norm().is_finite()
         || normal.norm() <= GEOM_EPS
         || [from, to].iter().any(|&p| {

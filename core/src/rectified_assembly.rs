@@ -408,6 +408,16 @@ fn assemble_at(
             .map(|&p| surface.signed_distance(p))
             .fold(f64::NEG_INFINITY, f64::max);
         let reflex = angles.iter().filter(|&&a| a > 180.).count();
+        let center = solid
+            .outer
+            .iter()
+            .fold(Vector3::zeros(), |sum, &p| sum + v(p))
+            / m as f64;
+        let mut face_depth = (-surface.signed_distance(center.into())).max(0.);
+        for k in 0..m {
+            let midpoint = (v(solid.outer[k]) + v(solid.outer[(k + 1) % m])) / 2.;
+            face_depth = face_depth.max(-surface.signed_distance(midpoint.into()));
+        }
         output.push(Piece {
             id: id(i),
             sides: m as u32,
@@ -417,7 +427,7 @@ fn assemble_at(
             inner: solid.inner,
             edges,
             corner_angles_deg: angles,
-            face_depth: 0.,
+            face_depth,
             seed_depth: if i < n {
                 Some(t.delaunay.tiles[i].depth)
             } else {

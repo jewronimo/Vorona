@@ -16,7 +16,12 @@ fn near_coplanar_joint_is_square_and_regular_joint_is_bisected() {
         let side = pieces::triangle_joint(&face, &other, [0.; 3], [2., 0., 0.], 7).unwrap();
         assert_eq!(side.neighbor, Some(7));
         assert_eq!(side.kind, "joint");
-        assert_eq!(side.plane.n[2], 0.);
+        let reverse = pieces::triangle_joint(&other, &face, [2., 0., 0.], [0.; 3], 8).unwrap();
+        for k in 0..3 {
+            assert!((side.plane.n[k] + reverse.plane.n[k]).abs() < 1e-14);
+        }
+        assert!((side.plane.d + reverse.plane.d).abs() < 1e-14);
+        assert!((side.plane.n[2].abs().asin().to_degrees() - angle / 2.).abs() < 1e-10);
         assert_eq!(side.plane.d, 0.);
     }
     let r = 3_f64.to_radians();
@@ -212,4 +217,34 @@ fn row_phase_rebuilds_on_surface_and_preserves_seeded_determinism() {
     assert_eq!(surface.y_range(), [0., 60.]);
     assert!(rectified::build_with_phase(&surface, &input.params, -phase).is_err());
     assert!(rectified::build_with_phase(&surface, &input.params, zero.rows[0].height).is_err());
+}
+
+#[test]
+fn shared_near_coplanar_plane_contains_both_inner_edges() {
+    use nalgebra::Vector3;
+    let angle = 1.9_f64.to_radians();
+    let a = Plane {
+        n: [0., 0., 1.],
+        d: 0.,
+    };
+    let b = Plane {
+        n: [0., angle.sin(), angle.cos()],
+        d: 0.,
+    };
+    let x = [3., 0., 0.];
+    let y = [7., 0., 0.];
+    let first = pieces::triangle_joint(&a, &b, x, y, 1).unwrap();
+    let second = pieces::triangle_joint(&b, &a, y, x, 0).unwrap();
+    let n = Vector3::from(first.plane.n);
+    // Intersect each inward face with this single shared side plane.
+    for face in [&a, &b] {
+        let f = Vector3::from(face.n);
+        let inward = -0.375 * (f - n * f.dot(&n)) / (1. - f.dot(&n).powi(2));
+        for endpoint in [x, y] {
+            let inner = Vector3::from(endpoint) + inward;
+            assert!((n.dot(&inner) - first.plane.d).abs() < 1e-12);
+            assert!((Vector3::from(second.plane.n).dot(&inner) - second.plane.d).abs() < 1e-12);
+            assert!((f.dot(&inner) + 0.375).abs() < 1e-12);
+        }
+    }
 }
