@@ -59,3 +59,24 @@ certification. Working tree is clean after the implementation/evidence commits.
 ### Parent verification — 2026-11-18
 
 Official `make dev-check` passed on commit `43f12c3`: `runs/logs/C7-dev-check-0926.log`. Main post-C6 merge check passed: main worktree `runs/logs/main-C6-post-merge-0915.log`. Targeted tests use enclosing rectangles to establish clearance, not the polygon-distance test explicitly named in the card. The full acceptance matrix and production A06 layout review remain outstanding; checklist left open pending review and those gates. No C7 merge.
+
+### Independent polygon clearance follow-up — 2026-11-18
+
+Added `core/tests/layout_clearance.rs`: an independent monotone-chain convex
+hull of transformed outer AND inner corners (the specified footprint), with
+point/segment Euclidean distance, crossing-edge and containment detection. Every
+same-blank pair is tested without reusing the production rectangle oracle.
+Regressions include ring12, synthetic inner overhang, deliberate overlapping
+placements, crossing polygons, contained polygons, touching/collinear edges and
+diagonal sub-gap separation. Production generation of the actual A06 cylinder
+fixture also passes: 380 pieces, 48 blanks, 0.25-inch gap. This full-path test is
+ignored by default and was explicitly run for this evidence.
+
+Targeted container evidence: `runs/logs/C7-polygon-clearance.log` (3 tests passed,
+including full-path production, 35.04s; the printed panic is the deliberately
+corrupted placement caught by the regression),
+`runs/logs/C7-polygon-clearance-final.log` (final ordinary regressions), and
+`runs/logs/C7-polygon-clearance-clippy.log` (test clippy with warnings denied).
+No nesting algorithm, public contract or dependency changes. These are development
+checks, not official dev-check or acceptance certification. Parent still owns
+those gates, six-case follow-up and merge review; checklist remains pending.
