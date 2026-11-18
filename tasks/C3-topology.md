@@ -690,3 +690,18 @@ is claimed. Parent owns execution, measured diagnosis and any ensuing solver fix
   relief base and C4 solving/face winding decisions remain outside this task.
   Mac review is first check only: NO merge without Claude-in-chat review AND
   explicit owner go-ahead, per latest owner process.
+
+### Section9 focused C3 follow-up — 2026-11-17 (parent verification pending)
+
+- Owner §9 replaces local row counts with deterministic constant n/h selection.
+  `row_layout.rs` checks profile-knot extrema, triangle base/leg/angle and blank
+  bounds; ranks median-row equilateral mismatch then smaller n. Fallback DP
+  minimizes stretches at profile-knot boundaries with adjacent counts differing
+  by count_step and divisible by count_step for periodic sector compatibility.
+  C4 must independently gate the generated geometry and all actual row limits.
+- Rows report h/base/leg/width; automatic base uses local row width squared.
+  Two support rows at each end remain. A05 source/geometry unchanged.
+- Added settings max_polygon_edge/count_step and section9 omission defaults,
+  mirrored both schemas and interface; updated superseded A06 test assertions.
+- No builds/tests/checks run by child: container fmt only; parent owns serial
+  verification. Existing dirty C4 work is excluded from this focused commit.

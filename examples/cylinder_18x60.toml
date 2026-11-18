@@ -15,6 +15,7 @@ target_size = 6.5                     # legacy setting; triangles use min_triang
 size_variation = "tight"              # "tight" = +-15 %, "wide" = +-40 %   (open)
 randomness = 0.0                      # 0 = regular, 1 = organic
 seed = 42
+count_step = 2
 
 [ends]
 top = "open"
@@ -27,8 +28,9 @@ min_edge = 1.0                        # (open)
 max_edge = 6.0                        # (open)
 min_corner_angle_deg = 30.0
 bevel_cap_deg = 60.0
-depth = 1.0
-min_triangle_edge = 4.0
+depth = 0.3
+min_triangle_edge = 1.5
+max_polygon_edge = 3.0
 relief_base = "auto"
 max_back_gap = 0.5
 max_corner_angle_deg = 230.0

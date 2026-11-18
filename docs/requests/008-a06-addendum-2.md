@@ -39,7 +39,7 @@ and legs may differ. Polygons are likewise symmetric about their vertical centre
 ## 9.4 Relief
 - Default `randomness = 0` (symmetric): row depth pattern 0, D/2, D (§8.2) on top of the auto base;
   every stone in a row identical.
-- Default `depth` = **0.1 × `max_polygon_edge`** (0.3 in at 3 in; prototype passed at 0.25 in). Explicit
+- Default `depth` = **0.25 in** (owner decision; supersedes the original edge-scaled default). Explicit
   `depth` overrides.
 - **Random relief (`randomness > 0`) is experimental:** allowed, reported, never a merge gate until
   reworked. Prototype: 0.25 in random relief on 3 in stones failed (torn pieces).

@@ -72,7 +72,8 @@
           "maximum": 0.5
         },
         "randomness": {
-          "type": "number"
+          "type": "number",
+          "default": 0.0
         },
         "seed": {
           "type": "integer",
@@ -117,7 +118,7 @@
         "depth": {
           "type": "number",
           "minimum": 0,
-          "default": 1.0
+          "default": 0.25
         },
         "max_corner_angle_deg": {
           "type": "number",
@@ -136,7 +137,7 @@
         "min_triangle_edge": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "default": 4.0
+          "default": 1.5
         },
         "max_back_gap": {
           "type": "number",
@@ -154,6 +155,17 @@
             }
           ],
           "default": "auto"
+        },
+        "max_polygon_edge": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 3.0
+        },
+        "count_step": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 128,
+          "default": 2
         }
       },
       "required": [
@@ -161,7 +173,6 @@
         "allowed_sides",
         "target_size",
         "size_variation",
-        "randomness",
         "seed",
         "ends",
         "rims",

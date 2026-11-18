@@ -9,6 +9,8 @@ pub mod planes;
 #[cfg(feature = "python")]
 mod py;
 pub mod rectified;
+pub mod rectified_assembly;
+pub mod rectified_planes;
 pub mod rims;
 pub mod seeds;
 pub mod sidecount;
@@ -75,27 +77,24 @@ fn run(input: &CoreInput, only: bool) -> CoreOutput {
         out.message = "invalid max_corner_angle_deg: expected a finite angle strictly between 180 and 270 degrees".into();
         return out;
     }
-    if p.pattern == Pattern::VoronoiTriangles {
-        out.message = "unsupported pattern voronoi_triangles: A06 C3/C4 implementation pending; no legacy fallback".into();
-        return out;
-    }
     if input.schema != "vstone.core_input/1"
         || input.surface.kind != "revolve"
         || !p.thickness.is_finite()
         || p.thickness <= 0.
         || !matches!(p.rims.top.as_str(), "level" | "whole")
         || !matches!(p.rims.bottom.as_str(), "level" | "whole")
-        || p.allowed_sides.is_empty()
-        || p.allowed_sides.iter().any(|k| !(4..=9).contains(k))
-        || !p.target_size.is_finite()
-        || p.target_size <= 0.0
+        || (p.pattern == Pattern::Voronoi
+            && (p.allowed_sides.is_empty()
+                || p.allowed_sides.iter().any(|k| !(4..=9).contains(k))
+                || !p.target_size.is_finite()
+                || p.target_size <= 0.0))
         || !p.bevel_cap_deg.is_finite()
         || p.bevel_cap_deg <= 0.0
         || p.bevel_cap_deg > 90.0
         || !p.min_bounding_square.is_finite()
         || p.min_bounding_square <= 0.0
-        || !p.size_variation.is_finite()
-        || !(0.05..=0.50).contains(&p.size_variation)
+        || (p.pattern == Pattern::Voronoi
+            && (!p.size_variation.is_finite() || !(0.05..=0.50).contains(&p.size_variation)))
     {
         out.message = "invalid feasibility input: expected revolve profile, sides 4..9, positive size and bevel limits, and numeric variation in 0.05..=0.50".into();
         return out;
@@ -103,7 +102,20 @@ fn run(input: &CoreInput, only: bool) -> CoreOutput {
     match surface::Surface::from_profile(&input.surface.profile) {
         Err(e) => out.message = format!("invalid surface: {e}"),
         Ok(surface) => {
-            out.feasibility = feasibility::check(&surface, p);
+            if p.pattern == Pattern::VoronoiTriangles {
+                match rectified::row_layout::choose(&surface, p) {
+                    Ok(rows) => {
+                        out.feasibility.feasible = true;
+                        out.feasibility.columns = rows.iter().map(|r| r.count as u32).collect();
+                    }
+                    Err(e) => {
+                        out.message = e;
+                        return out;
+                    }
+                }
+            } else {
+                out.feasibility = feasibility::check(&surface, p);
+            }
             if !out.feasibility.feasible || only {
                 out.status = if out.feasibility.feasible {
                     "ok"
@@ -111,7 +123,56 @@ fn run(input: &CoreInput, only: bool) -> CoreOutput {
                     "infeasible"
                 }
                 .into();
-                out.message = feasibility::message(&surface, &out.feasibility, p);
+                out.message = if p.pattern == Pattern::VoronoiTriangles {
+                    "A06 row-layout advisory only; solver/closure gates still required".into()
+                } else {
+                    feasibility::message(&surface, &out.feasibility, p)
+                };
+            } else if p.pattern == Pattern::VoronoiTriangles {
+                let result = rectified_assembly::solve_assembly(&surface, p);
+                match result {
+                    Err(e) => out.message = e,
+                    Ok(a) => {
+                        out.status = "failed_validation".into();
+                        out.message = format!("A06 C5 native pieces; C6/C7 held; fixed rims {:?}; pattern phase {} in; back gap min/median/max {:?}; per piece {:?}", a.rim_heights, a.pattern_phase, a.back_gap, a.per_piece_back_gap);
+                        let closure_ok = a.closure.is_ok();
+                        out.validation.checks.push(Check {
+                            id: "A06-C5".into(),
+                            name: "solids, limits and full physical-band closure".into(),
+                            passed: closure_ok
+                                && a.solid_errors.is_empty()
+                                && a.violations.is_empty(),
+                            failures: a
+                                .solid_errors
+                                .into_iter()
+                                .chain(a.violations.iter().map(|v| format!("{v:?}")))
+                                .chain(a.closure.err())
+                                .collect(),
+                        });
+                        out.pieces = a.pieces;
+                        out.stats.piece_count = out.pieces.len() as u32;
+                        for piece in &out.pieces {
+                            *out.stats
+                                .by_sides
+                                .entry(if piece.partial {
+                                    "partial".into()
+                                } else {
+                                    piece.sides.to_string()
+                                })
+                                .or_default() += 1;
+                            for edge in &piece.edges {
+                                out.stats.max_bevel_deg =
+                                    out.stats.max_bevel_deg.max(edge.bevel_deg);
+                            }
+                        }
+                        out.validation.checks.push(Check {
+                            id: "C6-C7-pending".into(),
+                            name: "validation, numbering, layout and nesting pending".into(),
+                            passed: false,
+                            failures: vec!["not certified for manufacturing".into()],
+                        });
+                    }
+                }
             } else {
                 let result = sidecount::build(&surface, p).and_then(|t| {
                     let g = planes::optimize(&surface, &t, p, &mut seeds::rng(p.seed))

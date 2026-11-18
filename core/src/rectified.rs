@@ -5,6 +5,8 @@ use crate::{
     surface::Surface,
     topology::Topology,
 };
+#[path = "row_layout.rs"]
+pub mod row_layout;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use serde::Serialize;
@@ -17,6 +19,9 @@ pub struct Row {
     pub count: usize,
     pub predicted_width: f64,
     pub exceeds_blank: bool,
+    pub height: f64,
+    pub triangle_base: f64,
+    pub triangle_leg: f64,
 }
 /// One rectified corner per original edge. Piece IDs: polygons first, then triangles.
 /// Only outermost padding edges may have three rather than four incident pieces.
@@ -47,7 +52,25 @@ fn delta(a: f64, b: f64) -> f64 {
 /// Rejects invalid A06 settings, resource caps and nonmanifold/open interior edges.
 /// Does not consult legacy allowed sides, target size, variation or C2 defect repair.
 pub fn build(surface: &Surface, p: &Params) -> Result<Rectified, String> {
-    let spacing = 2.3 * p.min_triangle_edge;
+    build_with_phase(surface, p, 0.)
+}
+
+/// Build A06 with a deterministic arc-length row phase in [0, one row height).
+/// Surface queries, depths and topology are reconstructed, never translated off-surface.
+pub fn build_with_phase(surface: &Surface, p: &Params, phase: f64) -> Result<Rectified, String> {
+    let mut layout = row_layout::choose(surface, p)?;
+    let height = layout
+        .iter()
+        .map(|r| r.height)
+        .fold(f64::INFINITY, f64::min);
+    if !phase.is_finite() || phase < 0. || phase >= height {
+        return Err("A06 pattern phase must lie within one row height".into());
+    }
+    for row in &mut layout {
+        row.s += phase;
+        row.width = TAU * surface.r(row.s) / row.count as f64;
+    }
+    let spacing = layout[layout.len() / 2].width;
     if p.pattern != Pattern::VoronoiTriangles
         || !spacing.is_finite()
         || spacing <= 0.0
@@ -68,19 +91,13 @@ pub fn build(surface: &Surface, p: &Params) -> Result<Rectified, String> {
             return Err("invalid relief_base".into());
         }
     }
-    // Physical arc pitch, as the reference triangular lattice; do not stretch
-    // the last row to the rim. Two complete support rows beyond both ends.
-    let pitch = spacing * 3.0_f64.sqrt() / 2.0;
-    let ordinary = (surface.length() / pitch).floor() as usize;
-    if ordinary > 9995 {
-        return Err("A06 seed row cap exceeded".into());
-    }
     let mut rng = ChaCha8Rng::seed_from_u64(p.seed);
     let mut tiles = Vec::new();
     let mut rows = Vec::new();
-    for row in 0..ordinary + 5 {
-        let s = (row as f64 - 2.0) * pitch;
-        let count = (TAU * surface.r(s) / spacing).round().max(3.0) as usize;
+    for (row, planned) in layout.iter().enumerate() {
+        let s = planned.s;
+        let count = planned.count;
+        let pitch = planned.height;
         if count > 100_000 || tiles.len() + count > 100_000 {
             return Err("A06 seed site cap exceeded".into());
         }
@@ -90,6 +107,9 @@ pub fn build(surface: &Surface, p: &Params) -> Result<Rectified, String> {
             count,
             predicted_width: width,
             exceeds_blank: width > p.blank_usable,
+            height: pitch,
+            triangle_base: width / 2.0,
+            triangle_leg: 0.5 * (width.powi(2) / 4.0 + pitch.powi(2)).sqrt(),
         });
         for col in 0..count {
             let angular = TAU / count as f64;
@@ -126,7 +146,8 @@ pub fn build(surface: &Surface, p: &Params) -> Result<Rectified, String> {
             ReliefBase::Inches(b) => b,
             ReliefBase::Auto(_) => {
                 let k = surface.principal_curvatures(t.s);
-                spacing.powi(2) / 16.0 * k[0].max(k[1]).max(0.0)
+                (TAU * surface.r(t.s) / rows[t.row].count as f64).powi(2) / 16.0
+                    * k[0].max(k[1]).max(0.0)
             }
         };
         let relief = if p.randomness == 0.0 {

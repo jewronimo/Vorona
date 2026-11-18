@@ -24,6 +24,7 @@ class RunConfig:
     size_variation: float
     randomness: float
     seed: int
+    count_step: int
 
     # Ends section
     top: Literal["open"]
@@ -38,6 +39,7 @@ class RunConfig:
     bevel_cap_deg: float
     depth: float
     min_triangle_edge: float
+    max_polygon_edge: float
     relief_base: str | float
     max_back_gap: float
     max_corner_angle_deg: float
@@ -74,6 +76,7 @@ def load_config(path: str) -> RunConfig:
                 "min_corner_angle_deg",
                 "bevel_cap_deg",
                 "min_triangle_edge",
+                "max_polygon_edge",
                 "min_bounding_square",
                 "blanks_size",
                 "blanks_usable",
@@ -106,6 +109,13 @@ def load_config(path: str) -> RunConfig:
             raise ConfigError("allowed_sides: duplicate values")
         if type(config.seed) is not int or not 0 <= config.seed < 2**64:
             raise ConfigError("seed: expected unsigned 64-bit integer")
+        if type(config.count_step) is not int or config.count_step < 1:
+            raise ConfigError("count_step: expected positive integer")
+        if (
+            config.pattern == "voronoi_triangles"
+            and config.min_triangle_edge > config.max_polygon_edge
+        ):
+            raise ConfigError("min_triangle_edge: exceeds max_polygon_edge")
         if (
             type(config.randomness) not in (int, float)
             or not 0 <= config.randomness <= 1
@@ -154,6 +164,7 @@ def _load_config(path: str) -> RunConfig:
             "size_variation": 15,
             "randomness": 0.0,
             "seed": 42,
+            "count_step": 2,
         },
         "ends": {
             "top": "open",
@@ -166,8 +177,9 @@ def _load_config(path: str) -> RunConfig:
             "max_edge": 6.0,
             "min_corner_angle_deg": 70.0 if pattern == "voronoi" else 30.0,
             "bevel_cap_deg": 60.0,
-            "depth": 1.5 if pattern == "voronoi" else 1.0,
-            "min_triangle_edge": 4.0,
+            "depth": 1.5 if pattern == "voronoi" else 0.3,
+            "min_triangle_edge": 4.0 if pattern == "voronoi" else 1.5,
+            "max_polygon_edge": 3.0,
             "relief_base": "auto",
             "max_back_gap": 0.5,
             "max_corner_angle_deg": 230.0,
@@ -177,6 +189,16 @@ def _load_config(path: str) -> RunConfig:
         "blanks": {"size": 12.0, "usable": 11.5, "nest_gap": 0.25},
         "output": {"dir": "runs", "preview": True},
     }
+    supplied_limits = data.get("limits", {})
+    if (
+        pattern == "voronoi_triangles"
+        and isinstance(supplied_limits, dict)
+        and "depth" not in supplied_limits
+    ):
+        maximum = supplied_limits.get("max_polygon_edge", 3.0)
+        if type(maximum) not in (int, float) or not math.isfinite(maximum) or maximum <= 0:
+            raise ConfigError("max_polygon_edge: expected finite positive number")
+        defaults["limits"]["depth"] = 0.1 * maximum
     for section in data:
         if section not in defaults:
             raise ConfigError(f"{section}: unknown section")
@@ -384,6 +406,7 @@ def _load_config(path: str) -> RunConfig:
         size_variation=size_variation,
         randomness=randomness,
         seed=seed,
+        count_step=pattern_data["count_step"],
         top="open",
         bottom="open",
         top_rim=top_rim,
@@ -394,6 +417,7 @@ def _load_config(path: str) -> RunConfig:
         bevel_cap_deg=bevel_cap_deg,
         depth=depth,
         min_triangle_edge=limits_data["min_triangle_edge"],
+        max_polygon_edge=limits_data["max_polygon_edge"],
         relief_base=limits_data["relief_base"],
         max_back_gap=limits_data["max_back_gap"],
         max_corner_angle_deg=limits_data["max_corner_angle_deg"],

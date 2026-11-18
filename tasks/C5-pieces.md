@@ -17,7 +17,7 @@ Turn planes into closed stone pieces: outer face, inner face, side quads, bevel 
 - [x] A2 `thickness_setting_and_reflex_offset`: configured thickness including thicker stone; simple reflex face supported, inner orientation preserved (A05).
 - [x] A3 `collapsed_thick_offset_returns_failure`: collapsed inner polygon explicitly fails, never panics (A05 R-VA-4).
 - [x] A4 `level_saw_and_sliver_are_explicit`: horizontal outer AND inner rim edges; real minimum enclosing square, not diameter (R-RM-1).
-- [x] A5 `placement_precedes_rejection`: choose cut height before cutting to avoid all undersized partials; fallback reports every rejected tile (owner “no slivers: shift pattern before cutting”, R-RM-2).
+- [x] A5 `placement_precedes_rejection`: shift pattern phase with cuts fixed at 0/H to avoid undersized partials; fallback reports every rejected tile (owner “no slivers: shift pattern before cutting”, R-RM-2).
 - [x] A6 `disconnected_reflex_clip_rejected`: disconnected reflex half-space result explicitly rejected before solid construction; whole removal gives square exposed edges (A05 / R-ST-5).
 - [x] A7 `topology_adapter_metadata_and_cache`: deterministic topology/shared-corner adapter and CoreOutput geometry metadata, configured thickness, volume sanity and explicit pending C6/C7 validation.
 
@@ -73,7 +73,7 @@ vorona-rust-container skill; all Rust commands in Vorona-dev only.
 - FIRST replaced acceptance with seven named A05/owner-mapped regressions.
 - Real minimum enclosing square: reuses C4 exact support-change/analytic candidate
   enumeration after orthonormal projection into the face plane. No diameter proxy.
-- Before cutting, choose each level cut height deterministically, requested height
+- **Obsolete historical experiment (superseded by fixed 0/H cuts and phase search):** Before cutting, choose each level cut height deterministically, requested height
   first, then 128 inward samples over one target pitch (capped at profile-height/4).
   Select fewest failed partials, then least displacement. Bottom is considered
   before top, and top placement evaluates bottom-clipped geometry. This is a
@@ -378,3 +378,91 @@ notes are retained as chronology, not the current gate outcome.
 
 This closure update edits documentation only; no checks rerun, commit or merge
 performed by the documentation agent.
+
+### A06 §9 square-joint/native adapter follow-up — 2026-11-17 (UNVERIFIED)
+
+Working in preserved dirty task/C4-a06-solver. See
+`runs/C5-a06-square-joint-handoff.md` for source changes, regression commands,
+native Vec<Piece> STEP handoff and exact unresolved owner rim decision.
+Container fmt only by child; all compilation/tests/benchmarks/checks parent-owned.
+No completed gate claim. A05 entrypoints unchanged, C6 held; no merge/push/commit.
+
+### Owner rim-edge exemption follow-up — 2026-11-17 (NOT CERTIFIED)
+
+Owner note recorded verbatim in A06 §9.2; provenance-specific max-edge exemption
+implemented, no other bounds changed. Tangent supports no longer falsely
+reported rejected. New focused regressions; container fmt only, parent owns ALL
+verification. See `runs/C5-owner-rim-policy-handoff.md` for exact serial commands
+and measured independent blocker: retained partial triangle diameters <3in
+cannot meet unchanged4in minimum square. Actual five completed saved cases have
+no InvalidInput solid errors; closure missing neighbors follows explicit sliver
+rejection. Rim-aware solver/layout still required, not solved by edge exemption.
+C5 A06 NOT complete; C6 remains held. No commit/merge/push.
+
+
+### Fixed design ends / row-phase correction — 2026-11-17 (focused evidence only)
+
+- Preserved inherited dirty work. A06 `assemble` now always cuts at the design
+  `Surface::y_range()`; it never searches inward saw heights. New native
+  `solve_assembly[_reporting]` tests 16 deterministic phases in `[0,h)` and
+  rebuilds surface seeds/depths/topology/fit for each phase. Production and
+  `a06_report` use this pipeline. Selected phase is reported independently of
+  fixed rim heights; every solver start callback includes its phase.
+- A06 partials retain the owner's 1.5-inch square, usable blank and minimum
+  angle checks; shortened edge minimums and other whole-piece size limits do
+  not reject partials. Exact flatness, solid validity and closure still apply.
+  Back-gap measurements remain present for partials (report-only there).
+  Existing fixed-point removal rebuilds exposed edges as square `rim_whole`
+  sides; the cylinder regression explicitly checks no dangling references.
+- Focused Vorona-dev release tests: all eight `triangle_pieces` tests pass,
+  including the explicit ignored smooth-cylinder numerical regression. Raw
+  log: `runs/logs/a06-fixed-rims/triangle-pieces.log`.
+- Focused smooth cone and vase diagnostic + byte-identical repeat pass with
+  closure, no solid/limit failures and fixed rims `[0,60]` / `[0,40]`.
+  Selected phases: cone 1.2753276779771845 inches; vase 1.8550220770577228
+  inches. First solve+assembly times 0.560 / 0.385 seconds, respectively.
+  Raw JSON and start reports: `runs/logs/a06-fixed-rims/`.
+- Focused clippy (`--lib --test triangle_pieces --example a06_report`) passed.
+  No official dev-check, acceptance, commit, merge or STEP review performed.
+  This is development evidence, not manufacturing certification; C6/C7 held.
+
+
+### Final integrated focused verification — 2026-11-17
+
+All six §9.6 required profiles/depths pass the focused native diagnostic,
+including byte-identical geometry/assembly repeats, actual C5 solids/limits,
+full-band closure and C4 row gates. Every case is below 90s INCLUDING repeat.
+These are focused development runs, NOT the official acceptance invocation.
+
+| Profile | Depth | First run seconds | Including repeat seconds | Pattern phase in |
+| --- | --- | --- | --- | --- |
+| final-cylinder-d0 | 0 | 0.256 | 0.490 | 1.530393213573 |
+| final-cylinder-d0.25 | 0.25 | 14.186 | 28.417 | 1.836471856287 |
+| final-cone_9_to_6-d0 | 0 | 0.284 | 0.566 | 1.275327677977 |
+| final-cone_9_to_6-d0.25 | 0.25 | 3.638 | 7.270 | 3.315851962741 |
+| final-vase_bulge-d0 | 0 | 0.217 | 0.421 | 1.855022077058 |
+| final-vase_bulge-d0.25 | 0.25 | 34.898 | 69.835 | 4.328384846468 |
+
+- Raw JSON, all per-phase solver reports and summary:
+  `runs/logs/a06-fixed-rims/final-six-summary.json` and corresponding
+  `final-*.json` / `final-*.stderr`.
+- Independent checks of every delivered piece: zero dangling neighbor IDs,
+  every partial enclosing square >=1.5 inches, both outer AND inner level-cut
+  vertices exactly at the design ends (max error 0). Maximum measured face
+  flatness error across all six cases is 5.41e-11 inches.
+  `runs/logs/a06-fixed-rims/final-six-independent-checks.json`.
+- Final Vorona-dev release solver tests 10/10, triangle-piece tests 8/8
+  including the ignored smooth-cylinder regression; focused clippy green.
+  Logs: `final-solver-tests.log`, `final-triangle-pieces.log`, `final-clippy.log`
+  under that same directory.
+- Intermediate exhaustive and poorly ranked phase schedules timed out; retained
+  logs are failed experiments, NOT waived acceptance. The final schedule first
+  uses start #2 for eight steps, then zero for sixty steps, then ranked unchanged
+  full-cap escalation if necessary. This retains existing valid basins while
+  avoiding expensive full multistart solves at unusable saw/pattern placements.
+- No official dev-check/acceptance, commit or merge performed. All existing dirty
+  work preserved. C6/C7/manufacturing certification and owner STEP review held.
+
+### Final A06 review update
+
+Cuts remain fixed at 0 and H; deterministic pattern-phase search within one row height replaces the obsolete cut-height placement above. Six required cases passed closure and deterministic repeats; STEP exports: `runs/logs/a06-fixed-rims/step/`. Default relief depth is 0.25 in.

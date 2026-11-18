@@ -46,6 +46,10 @@ impl Default for ReliefBase {
 pub struct Params {
     pub pattern: Pattern,
     pub min_triangle_edge: f64,
+    #[serde(default = "default_max_polygon_edge")]
+    pub max_polygon_edge: f64,
+    #[serde(default = "default_count_step")]
+    pub count_step: usize,
     pub relief_base: ReliefBase,
     pub max_back_gap: f64,
     pub thickness: f64,
@@ -78,6 +82,10 @@ struct ParamsWire {
         deserialize_with = "read_min_triangle_edge"
     )]
     pub min_triangle_edge: f64,
+    #[serde(default = "default_max_polygon_edge")]
+    pub max_polygon_edge: f64,
+    #[serde(default = "default_count_step")]
+    pub count_step: usize,
     #[serde(default, deserialize_with = "read_relief_base")]
     pub relief_base: ReliefBase,
     #[serde(
@@ -89,7 +97,8 @@ struct ParamsWire {
     pub allowed_sides: Vec<u32>,
     pub target_size: f64,
     pub size_variation: f64,
-    pub randomness: f64,
+    #[serde(default)]
+    pub randomness: Option<f64>,
     pub seed: u64,
     pub ends: Ends,
     pub rims: Rims,
@@ -113,13 +122,15 @@ impl From<ParamsWire> for Params {
         Self {
             pattern: w.pattern,
             min_triangle_edge: w.min_triangle_edge,
+            max_polygon_edge: w.max_polygon_edge,
+            count_step: w.count_step,
             relief_base: w.relief_base,
             max_back_gap: w.max_back_gap,
             thickness: w.thickness,
             allowed_sides: w.allowed_sides,
             target_size: w.target_size,
             size_variation: w.size_variation,
-            randomness: w.randomness,
+            randomness: w.randomness.unwrap_or(0.0),
             seed: w.seed,
             ends: w.ends,
             rims: w.rims,
@@ -132,7 +143,7 @@ impl From<ParamsWire> for Params {
             bevel_cap_deg: w.bevel_cap_deg,
             depth: w.depth.unwrap_or(match w.pattern {
                 Pattern::Voronoi => 1.5,
-                Pattern::VoronoiTriangles => 1.0,
+                Pattern::VoronoiTriangles => 0.25,
             }),
             max_corner_angle_deg: w.max_corner_angle_deg,
             min_bounding_square: w.min_bounding_square,
@@ -261,7 +272,7 @@ pub struct Provenance {
 }
 
 fn default_min_triangle_edge() -> f64 {
-    4.0
+    1.5
 }
 fn default_max_back_gap() -> f64 {
     0.5
@@ -296,4 +307,11 @@ fn read_min_triangle_edge<'de, D: serde::Deserializer<'de>>(d: D) -> Result<f64,
 
 fn read_max_back_gap<'de, D: serde::Deserializer<'de>>(d: D) -> Result<f64, D::Error> {
     f64::deserialize(d).map_err(|e| serde::de::Error::custom(format!("max_back_gap: {e}")))
+}
+
+fn default_max_polygon_edge() -> f64 {
+    3.0
+}
+fn default_count_step() -> usize {
+    2
 }

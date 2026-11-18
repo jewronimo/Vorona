@@ -72,6 +72,15 @@ STEP headers get a fixed timestamp (`1970-01-01T00:00:00`) so files are reproduc
    housekeeping evidence); default ignored gates retain the other regressions,
    and the full production-selector matrix remains mandatory. Report-only depth1/2
    geometric failures must be reported separately.
+   A06 adds the cylinder/cone/vase smooth, random depth1 seeds1..10 and
+   symmetric depth1 matrix, plus depth1.5 report-only diagnostics (90s each).
+   A06 §8.9 gates rotation-exact representative copies only where a row count
+   equals BOTH neighbours; report every freely solved transition row with no
+   symmetry claim. Gated-row geometry/spacing/size errors must be ≤1e-6 inch.
+   These C4 limits have NO timeout waiver. Preserve every deterministic start's
+   report and per-case runtime. A05's sole historical waiver applies ONLY to
+   `voronoi`, never A06. C3-C5 combined acceptance stays PENDING until C5
+   adapters, clipped partials, back-gap, closure and owner STEP review exist.
 7. Tick the card's checklist, add `## Agent notes` if anything deviated, open a PR.
 
 No new dependency unless the card lists it, or you add it under `## Agent notes` with a reason.

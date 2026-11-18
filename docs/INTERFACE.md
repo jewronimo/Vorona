@@ -188,3 +188,14 @@ manufacturing-ready layout. Every removed/rejected polygon is listed in the
 C5 check failures, including expected outside/whole-rim removals.
 Selected level cut heights (deterministic inward search within one tile pitch,
 capped at one quarter of the profile height) are stated in the run message.
+
+## A06 section 9 settings (owner-approved 2026-11-17)
+
+`voronoi_triangles` adds `max_polygon_edge` (finite >0, default 3 inches)
+and `count_step` (integer 1..128, default 2). `min_triangle_edge` defaults to
+1.5 inches; omitted `randomness` is 0; omitted `depth` resolves in Rust to
+0.1 times the resolved `max_polygon_edge`. Explicit depth 0 remains smooth.
+A05 `voronoi` retains depth 1.5 and its existing geometry/default angle rules.
+A06 derives constant physical row height/count, with count-step fallback; it
+no longer derives spacing from 2.3 times the triangle minimum. Shell must pass
+explicit user values unchanged and preserve omission of depth until resolved.

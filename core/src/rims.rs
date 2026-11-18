@@ -24,6 +24,27 @@ pub fn level(
     top: bool,
     minimum: f64,
 ) -> Result<LevelCut, &'static str> {
+    level_impl(outer, sides, height, top, minimum, false)
+}
+/// A06 level clip with duplicate-vertex provenance preserved. This uses the
+/// same physical cut/sliver policy as `level`; A05's entrypoint is unchanged.
+pub fn triangle_level(
+    outer: &[Point],
+    sides: &[Side],
+    height: f64,
+    top: bool,
+    minimum: f64,
+) -> Result<LevelCut, &'static str> {
+    level_impl(outer, sides, height, top, minimum, true)
+}
+fn level_impl(
+    outer: &[Point],
+    sides: &[Side],
+    height: f64,
+    top: bool,
+    minimum: f64,
+    preserve_provenance: bool,
+) -> Result<LevelCut, &'static str> {
     if outer.len() < 3
         || sides.len() != outer.len()
         || !height.is_finite()
@@ -85,6 +106,11 @@ pub fn level(
             .sum::<f64>()
             <= GEOM_EPS * GEOM_EPS
         {
+            if preserve_provenance {
+                // Removing a zero-length incoming edge must retain the real
+                // previous edge's label on the surviving endpoint (also wrap).
+                incoming[j] = incoming[k].clone();
+            }
             points.remove(k);
             incoming.remove(k);
         } else {
@@ -160,6 +186,40 @@ pub fn place(
                 Ok(LevelCut::Sliver) | Err(_) => Some(i),
                 _ => None,
             })
+            .collect();
+        if failures.len() < count {
+            count = failures.len();
+            best = (height, failures);
+        }
+        if count == 0 {
+            break;
+        }
+    }
+    best
+}
+
+/// A06 cut-height search in inches, identical ordering/caps to C5 `place`,
+/// but retaining the A06 duplicate-vertex side provenance.
+pub fn triangle_place(
+    polygons: &[(Vec<Point>, Vec<Side>)],
+    requested: f64,
+    top: bool,
+    pitch: f64,
+    minimum: f64,
+) -> (f64, Vec<usize>) {
+    let mut best = (requested, Vec::new());
+    let mut count = usize::MAX;
+    for step in 0..=128 {
+        let height = requested + if top { -1. } else { 1. } * pitch * step as f64 / 128.;
+        let failures: Vec<_> = polygons
+            .iter()
+            .enumerate()
+            .filter_map(
+                |(i, (p, s))| match triangle_level(p, s, height, top, minimum) {
+                    Ok(LevelCut::Sliver) | Err(_) => Some(i),
+                    _ => None,
+                },
+            )
             .collect();
         if failures.len() < count {
             count = failures.len();

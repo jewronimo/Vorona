@@ -110,7 +110,7 @@ Profiles: cylinder 18 × 60, cone 9 → 6, vase bulge. Settings as section 3.
 - [ ] Smooth (`depth = 0`): all three pass every limit and closure.
 - [ ] Random relief `depth = 1.0`, seeds 1..10: all three pass (multi-start allowed, reported).
 - [ ] Symmetric (`randomness = 0`, `depth = 1.0`): all three pass, rotational gate (equal spacing and
-      size per row within 1e-6).
+      size per gated row within 1e-6; owner count-transition exception §8.9).
 - [ ] `depth = 1.5`: report only.
 - [ ] Every polygon flat (|corner-to-plane| ≤ 1e-6 in), every corner 4-valent in band, determinism.
 - [ ] Back-gap and corner-distance reports present; runtime per case reported (budget 90 s).
@@ -163,7 +163,7 @@ disagree, this section wins.
 - This **supersedes the A05 owner decision of 2026-11-12** ("depth never varies per point") **for
   `voronoi_triangles` only**. Per-seed random depth is allowed here because no three-plane corners
   exist in this pattern (corners lie on two-plane lines).
-- Symmetric mode (`randomness = 0`): every polygon in a row identical; rows use the A05 three-row
+- Symmetric mode (`randomness = 0`): every polygon in a gated row identical (owner exception §8.9); rows use the A05 three-row
   depth pattern scaled to [b, b + depth] (no two-row alternation).
 - Schema bounds: `depth` ≥ 0 for `voronoi_triangles`; `voronoi` keeps `depth` > 0.
 
@@ -214,6 +214,24 @@ production must solve the two-plane line exactly to meet the ≤ 1e-6 in flatnes
   `voronoi`. Update AGENTS.md §5.6 when A06 C4 lands (new matrix, waivers).
 - C6 stays on hold until A06 C3–C5 merge.
 
+## 8.9 Owner-approved symmetric count-transition exception (2026-11-17)
+
+Jerry's decision supersedes the blanket per-row identity requirement in §8.2
+and the symmetric rotational gate in §5, for `voronoi_triangles` only:
+
+- A row whose seed count equals **both** immediate neighbouring row counts is
+  solved using one row representative and copied by its rigid periodic rotation.
+  The geometric rotational gate remains **1e-6 inch**, including equal spacing
+  and piece size. No independent full-row solve followed by averaging.
+- A row at a seed-count transition is solved freely, deterministically from
+  `seed`. It carries **no symmetry claim**. The gate/report identifies every
+  such row individually with its count and both neighbouring counts.
+- Outermost padding rows have no pair of neighbours and carry no per-row
+  symmetry claim; physical rows retain two support rows from C3.
+- This exception changes no §3 limit, exact two-plane corner construction,
+  per-seed depth/base rule, deterministic multi-start requirement, runtime
+  budget, A05 regression, or C5/closure/owner review gate.
+
 ## 9. Owner-approved addendum — small symmetric stones, constant rows (2026-11-17)
 
 Approved by Jerry in chat; source: `docs/requests/008-a06-addendum-2.md`.
@@ -235,6 +253,23 @@ right on cylinder, cone and vase; large stones looked coarse, and random relief 
 Triangles are isosceles in the symmetric layout: symmetric about their own vertical centreline, base
 and legs may differ. Polygons are likewise symmetric about their vertical centreline.
 
+### Owner rim-edge decision — 2026-11-17 (verbatim)
+
+> edges created by level rim saw cut (kind rim_level, and square rim_whole edges) exempt from max_polygon_edge. Rim-cut pieces STILL limited by blank_usable, min_triangle_edge on remaining triangle sides, min_corner_angle_deg, min_bounding_square for rim partials.
+
+### Owner rim-partial decision — 2026-11-17
+
+For `voronoi_triangles` only, rim partial minimum enclosing square is **1.5 in**,
+replacing the inherited 4.0 in minimum. Edges shortened by the cut are exempt
+from `min_edge` and `min_triangle_edge`. Partials are judged only by the 1.5 in
+square, `blank_usable`, and `min_corner_angle_deg`.
+
+The level saw cuts are always at the design ends, exactly 0 and H. To avoid
+small partials, shift the pattern row phase along the profile using a deterministic
+search within one row height; never move the cut heights. Rejected neighbors
+expose square `rim_whole` edges without dangling joint references. A05 remains
+unchanged.
+
 ## 9.3 Row layout (replaces §2.5 per-row counts and §8.4 C2 counts)
 1. **Constant count, constant row height.** Choose one seed count `n` per row for the whole surface and
    one physical row height `h` (arc length along the profile). Stones narrow or widen with the radius;
@@ -255,7 +290,7 @@ and legs may differ. Polygons are likewise symmetric about their vertical centre
 ## 9.4 Relief
 - Default `randomness = 0` (symmetric): row depth pattern 0, D/2, D (§8.2) on top of the auto base;
   every stone in a row identical.
-- Default `depth` = **0.1 × `max_polygon_edge`** (0.3 in at 3 in; prototype passed at 0.25 in). Explicit
+- Default `depth` = **0.25 in**. Explicit
   `depth` overrides.
 - **Random relief (`randomness > 0`) is experimental:** allowed, reported, never a merge gate until
   reworked. Prototype: 0.25 in random relief on 3 in stones failed (torn pieces).
@@ -268,8 +303,10 @@ and legs may differ. Polygons are likewise symmetric about their vertical centre
 
 ## 9.6 Acceptance (replaces §5 matrix for this pattern)
 Required, all limits + closure + flatness + determinism + rotational gate:
-- Cylinder 18×60, cone 9→6, vase bulge: smooth (`depth = 0`) and symmetric relief at the default depth.
-- Report only: symmetric relief at 2× default depth; random relief at default depth, seeds 1..3.
+- Cylinder 18×60, cone 9→6, vase bulge: smooth (`depth = 0`) and symmetric relief at **depth = 0.25 in** (owner exact prototype parity request;
+  matching the configured default of 0.25 in in §9.4).
+- Report only: symmetric relief at 0.5 in; random relief at 0.25 in, seeds 1..3.
+  These use twice the configured 0.25 in default for symmetric relief and the default itself for random relief.
 - STEP export of all six required cases for owner review.
 
 ## 9.7 Prototype reproduction
