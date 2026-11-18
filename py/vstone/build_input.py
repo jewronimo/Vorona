@@ -43,6 +43,8 @@ def build_core_input(config: RunConfig, profile_path=None) -> dict[str, Any]:
         "params": {
             "pattern": config.pattern,
             "min_triangle_edge": config.min_triangle_edge,
+            "max_polygon_edge": config.max_polygon_edge,
+            "count_step": config.count_step,
             "relief_base": config.relief_base,
             "max_back_gap": config.max_back_gap,
             "thickness": config.thickness,

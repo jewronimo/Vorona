@@ -899,3 +899,220 @@ C4 is review-ready, NOT fully accepted: cylinder r.5/seed3 remains unresolved af
   no container git lookup through host-absolute worktree paths. Existing
   acceptance logs/matrix executable/target preserved, not restarted/rebuilt.
 - Parent still owns post-fix dev-check/full acceptance and commit/merge/push.
+
+### A06 C4 implementation handoff — 2026-11-16 (UNVERIFIED; incomplete symmetry transitions)
+
+- Worktree `runs/worktrees/C4-a06-solver`, branch `task/C4-a06-solver`, approved
+  C3 base `0cb5943`. No commit, merge, push, C6 work, Python geometry or contract edit.
+- `rectified_planes.rs` adds two polygon tilts and one corner slide, exact
+  cross-product dual-basis two-plane intersection (rejects degenerate lines;
+  NO determinant regularization), generic surface queries and a surface-owned
+  rigid periodic action. C3 supplies seeds, per-seed bases, derived spacing and
+  topology unchanged. Legacy A05 solver source is unchanged.
+- Five fixed deterministic analytic perturbations, 150 GN iterations per start,
+  sparse finite-difference columns and 80-step matrix-free CG. Reports EVERY
+  attempt, best attempt index, all measured signed configured-limit deficit
+  ranges, violations, corner distances, base statistics and actual square sizes.
+  Trial geometry rejects singular inner intersections / nonfinite residuals.
+  No convergence or 90-second runtime claim: numerical work belongs to parent.
+- A06 whole-piece edge/angle/bevel/blank and corner-band barriers; inner footprint
+  at configured thickness uses adjacent bisector joints (square joints below
+  one-degree half-angle), signed inner-edge guard, orientation and simplicity.
+  No minimum whole-piece bounding square and no legacy max_edge constraint.
+  Clipped partial/sliver checks, actual back-gap measurement, closure and STEP
+  remain explicitly C5-pending. This is NOT combined C3-C5 acceptance.
+- Symmetric equal-count rows use ONE normal representative per row and corner
+  rotation orbits; geometry is copied by the surface's rigid action, never an
+  independent full solve followed by averaging. Structural tests exercise exact
+  plane incidence, four-valence, deterministic perturbation reports, rotation,
+  impossible configured limits and parallel-line rejection.
+- **Unresolved task constraint:** approved C3 changes row counts on cone/vase.
+  A full row rotation (2π/count) does not preserve adjacency to a row with a
+  different count. Exact per-row congruent polygon copies across such a
+  transition are not provided by this implementation. It returns an explicit
+  unsupported error BEFORE solving, rather than claiming the rotational gate.
+  This part of the task is stopped under AGENTS §2; parent/owner must resolve
+  compatible symmetric topology or clarify the gate. No approved topology was
+  changed and no symmetry tolerance was relaxed. A06 C4 is NOT complete.
+- Sparse storage is implemented but derivative evaluations still rebuild all
+  geometry per column; coloring/local block evaluation is absent. Parent must
+  measure performance; do not infer prototype runtime. No starts or settings
+  were measured by this child. If measured cone/vase multi-start fails, preserve
+  best result/settings and stop for owner, without relaxing any bounds.
+- `a06_report` diagnostic emits full best geometry/reports and case wall time.
+  `scripts/a06_matrix.sh` adds 39 cases: 3 smooth, 30 depth1 random, 3 symmetric,
+  3 depth1.5 report-only. `make acceptance` retains original A05 ignored gates
+  and 96-case runner, then runs these A06 cases serially at 90s. No A06 waiver.
+  Timeouts are INCOMPLETE, not passed; killed cases cannot emit finished attempt
+  reports. C5 pending is explicitly printed even if C4 gates pass.
+- Child ran **container cargo fmt only**; no build/test/check/benchmark/diagnostic.
+  Parent must inspect/compile/review and perform all verification serially.
+
+Parent verification (host, exact worktree; preserve raw logs):
+
+```sh
+cd /Users/spooky/Projects/Vorona/voronoi-stone/runs/worktrees/C4-a06-solver
+make dev-check > runs/logs/C4-a06-dev-check.log 2>&1
+make acceptance
+```
+
+For a single bounded release case (AFTER dev-check, not concurrently):
+
+```sh
+docker exec -w /src/runs/worktrees/C4-a06-solver Vorona-dev bash -c 'cd core && cargo build --release --example a06_report'
+docker exec -w /src/runs/worktrees/C4-a06-solver Vorona-dev bash -c 'timeout 90 taskset -c 0 core/target/release/examples/a06_report tests/fixtures/core_input_cylinder.json 1 1 1 tests/fixtures/profiles/cone_9_to_6.json' > runs/logs/C4-a06-cone-s1.json 2> runs/logs/C4-a06-cone-s1.stderr.log
+```
+
+- [ ] Parent dev-check passes with raw logs.
+- [ ] Parent A06 36 required C4 cases pass every limit within 90s; all attempts logged.
+- [ ] Unequal-count symmetric topology/gate conflict resolved without averaging.
+- [ ] A05 regressions unchanged and required acceptance passes (sole legacy waiver only).
+- [ ] Combined C3-C5 gates: pending C5 adapter/back-gap/closure/owner STEP.
+- [ ] Claude review and Jerry authorization before any C4 merge.
+
+### Parent verification — 2026-11-16 (BLOCKED; not ready for review)
+
+- Worktree-selected `make dev-check` failed exit 2: Clippy
+  `needless_range_loop` at `core/src/rectified_planes.rs:185` (warnings denied).
+  Log: `runs/logs/C4-a06-dev-check.log`. No complete test-suite pass claimed.
+- Parent release diagnostic build passed; log
+  `runs/logs/C4-a06-report-build.log`. This is not a substitute for dev-check.
+- Bounded cone and vase symmetric depth1/randomness0/seed1 diagnostics both
+  exited 1 with `A06 symmetric unequal-count row transition unsupported: exact
+  row rotation orbit unavailable`. Both report `attempts: []`, `best: null`;
+  neither reached optimization or multi-start. Evidence:
+  `runs/logs/C4-a06-cone-symmetric.json`,
+  `runs/logs/C4-a06-vase-symmetric.json` (stderr alongside).
+- Full acceptance not run: known compile-quality and required-symmetry blockers
+  remain. No settings/limits/topology relaxed, no C4 commit/merge/push.
+- Specialist continuation unavailable this turn: session-send/spawn tools were
+  absent; CLI continuation rejected by Gateway inter-session attribution guard.
+  No alternate CLI route attempted after rejection. Evidence:
+  `runs/logs/C4-a06-followup-agent.json` and `.stderr.log`.
+- Resume with attributed vorona-core continuation: fix Clippy, resolve or prove
+  exact per-row symmetry conflict against approved C3 topology, then parent
+  reruns official checks and serial numerical verification. C6 remains held.
+
+### Owner hybrid-symmetry continuation — 2026-11-17 (parent checks pending)
+
+- A06 §8.9 records Jerry's decision: gate only rows with counts equal to BOTH
+  neighbours; explicitly list every free count-transition row with neighbour
+  counts and no symmetry claim. The previous unsupported blanket rejection is
+  removed. Outermost padding rows are free, not counted as rotational passes.
+- `rectified_planes` now classifies every row before optimization. Gated rows
+  have exactly one pair of tilt unknowns and representative corner slides,
+  copied via the generic rigid action. Transition rows have independent tilts
+  and free/free corners independent slides. Seed affects deterministic start
+  perturbations; no additional RNG or geometry-specific surface formulas.
+- Exact incidence takes priority at the interface between copied and free rows:
+  corners with TWO copied planes are rotation-copied; corners incident to a
+  free plane are reintersected on the exact two-plane line using the copied
+  slide. The geometric row-copy/spacing/size gate checks these interface corners
+  at 1e-6 inch, with equality residuals driving consistency. There is no corner
+  averaging or projection away from a free polygon's plane. A violated gate
+  blocks C4 success even when all manufacturing limits pass. Interface
+  convergence must be measured by parent; it is not assumed from parameter ties.
+- Both best geometry and EVERY attempt report all row classifications and
+  measured rotation/spacing/size errors. Failed initial geometry retains
+  unmeasured row classifications (`passed: null`, not a false pass).
+  `a06_report` also emits row policy before solve, including on failure.
+- Fixed the parent-reported Clippy `needless_range_loop` by enumerating seed
+  records instead of range-indexing them. Added tests for all-profile hybrid
+  classification, independent free-row unknowns, exact interface flatness,
+  failure visibility (no averaging), and gated cylinder row copying.
+- No A05 solver, C3 topology, Python, schemas or contract changes. §3 limits,
+  five starts, attempt reports, and C5 pending status retained. Previous
+  unequal-count implementation blocker is superseded by this continuation;
+  numerical convergence/performance and full parent checks remain UNVERIFIED.
+- Child ran container formatting only; parent owns serial dev-check, tests and
+  acceptance. No commit, merge or push. C6 remains held.
+
+Continuation review checklist (implementation is not numerical certification):
+- [x] Owner §8.9 addendum recorded and hybrid row policy implemented.
+- [x] Blanket unequal-count rejection removed; transitions have independent DOFs.
+- [x] Required-row geometric gates cannot be hidden by manufacturing-limit success.
+- [x] Every attempt and diagnostic case identifies free transition rows.
+- [x] Parent-reported range-loop Clippy source corrected (not yet parent rechecked).
+- [ ] Parent `make dev-check` and A06 symmetry/interface tests pass with raw logs.
+- [ ] Parent serial A06 and retained A05 acceptance measured; no new waivers.
+- [ ] Claude review, Jerry authorization, C5 combined acceptance remain pending.
+
+### Section 9 official-check / vase residual correction — 2026-11-17 (UNVERIFIED)
+
+- The two `rectified_planes::geometry_tests` failures in C4-1248/C5-1249
+  originate in a stale topology fixture: explicit min_triangle_edge=4 while
+  section 9 max_polygon_edge=3. This is infeasible by definition, not a layout
+  fallback bug. Updated only that fixture to explicit 1.5/3; kept exact flatness,
+  four-valence, rotation, deterministic attempts and impossible-limit assertions.
+- Settled six-case vase symmetric evidence has attempt1 at44.320s with ONLY
+  11 simple_inner_polygon violations (best iteration149). Existing crossing
+  residual was binary 0/1: finite differences inside a crossing are zero,
+  so the GN step has no unfolding gradient. Both outer/inner crossing rows now
+  retain the EXACT same intersects predicate and unit failure floor, adding
+  minimum endpoint-to-opposite-line penetration. Negative inner orientation
+  likewise retains its unit floor and adds absolute signed area. These are
+  stronger objective penalties, not changed predicates, physical limits or
+  acceptance tolerances. No count, row height, depth, starts or caps changed.
+- Added a regression requiring decreasing residual while a crossing unfolds,
+  unit penalty for endpoint contact, and zero only after separation. Existing
+  intersection tests and solver/determinism gates retained.
+- Container cargo fmt only; NO builds/tests/checks or new numerical runs by
+  child. Parent must rerun official dev-check and all six cases with fresh
+  attributable artifacts. Vase convergence/runtime improvement is UNPROVEN;
+  do not certify this correction from source inspection. Owner rim decision,
+  C5 closure and STEP review remain pending. Existing exports/logs untouched.
+
+### Section 9 canonical contract fixture continuation — 2026-11-17 (UNVERIFIED)
+
+- Official C4-1254 passed fmt/clippy and 21 unit tests, then exposed stale
+  canonical fixtures: serialized Params now includes max_polygon_edge/count_step
+  but cylinder/ring12/A06 fixtures omitted both. Added explicit3.0/2 in Rust
+  field order without changing A05 input geometry/limits. Updated ring output
+  provenance SHA256 to the new exact ring input bytes; no ring geometry changed.
+- A06 canonical fixture additionally now uses section9 min_triangle_edge1.5
+  and depth0.3, replacing stale4/1. No default or physical limit was relaxed.
+- Range-contract test's long runtime came from asking the count-step DP to
+  rescue the provably empty triangle interval [4,3]. Row-layout now rejects
+  min_triangle_edge > max_polygon_edge before DP; added exact-error regression.
+  Valid ranges, count-step fallback and A05 behavior are unchanged.
+- CORE-only edits; no builds/tests/checks, container fmt only. Parent must rerun
+  official dev-check. SHELL still needs to align examples/cylinder_18x60.toml
+  (explicit min_triangle_edge4/depth1) with §9 fixture; current config rejects
+  its empty triangle interval, so test_example_matches_core_fixture remains a
+  known upcoming shell-side blocker. No owner decision needed for that stale
+  example migration. Owner rim decision remains unresolved and is not inferred.
+
+
+### Symmetric relief timeout correction — 2026-11-17 (focused evidence only)
+
+- Preserved inherited edits. Compared the native finite-difference LM schedule
+  to the prototype: rejected trial steps change damping, not the point or its
+  Jacobian. Native C4 now reuses columns/scales until an accepted step changes
+  the point. It also queries surface distance once per corner and evaluates
+  the exact enclosing square on the footprint convex hull (interior points
+  cannot be supports). No barrier, manufacturing tolerance or full-solve cap
+  changed. Hull equivalence is tested on synthetic and actual three-profile
+  outer+inner footprints.
+- Phase-zero cone depth .25 C4 before/after cache optimization: 85.06/20.91s,
+  unchanged per-attempt violation counts 190,480,0. Full C4 completion alone
+  is NOT C5 acceptance; initial exhaustive phase searches still timed out.
+- Final A06 phase search first probes the existing deterministic start #2 for
+  eight iterations across 16 phases, then the zero start for up to 60 steps
+  across those phases; unsolved phases are ranked for unchanged full five-start
+  150-step escalation. Smooth/random skip the perturbed pilot. Symmetric full
+  solves prefer existing start #2, retaining all original starts and stable IDs.
+  Every pilot/final attempt remains in the reporting callback. Only a complete
+  C4-valid geometry plus actual C5 clipping/solid/limit/closure success returns
+  early; unsuccessful pilots can rank candidates but never authorize geometry.
+- Native seed/depth/topology reconstruction at each phase keeps the design
+  saw cuts fixed. No prototype import, geometry translation or limit waiver.
+- Focused numerical logs (including failed intermediate schedules) retained
+  under `runs/logs/a06-fixed-rims/`. Official dev-check/acceptance and owner
+  STEP review remain parent-owned; C6/C7 remain held.
+
+
+Final integrated focused evidence: all six smooth/symmetric .25 cases passed
+with byte-identical repeat; .25 cone 3.638s first / 7.270s including repeat;
+.25 vase 34.898s first / 69.835s including repeat. See final C5 note and
+`runs/logs/a06-fixed-rims/final-six-summary.json`. Final solver tests 10/10,
+piece tests 8/8, focused clippy pass. No official gate or manufacturing claim.

@@ -253,6 +253,23 @@ right on cylinder, cone and vase; large stones looked coarse, and random relief 
 Triangles are isosceles in the symmetric layout: symmetric about their own vertical centreline, base
 and legs may differ. Polygons are likewise symmetric about their vertical centreline.
 
+### Owner rim-edge decision — 2026-11-17 (verbatim)
+
+> edges created by level rim saw cut (kind rim_level, and square rim_whole edges) exempt from max_polygon_edge. Rim-cut pieces STILL limited by blank_usable, min_triangle_edge on remaining triangle sides, min_corner_angle_deg, min_bounding_square for rim partials.
+
+### Owner rim-partial decision — 2026-11-17
+
+For `voronoi_triangles` only, rim partial minimum enclosing square is **1.5 in**,
+replacing the inherited 4.0 in minimum. Edges shortened by the cut are exempt
+from `min_edge` and `min_triangle_edge`. Partials are judged only by the 1.5 in
+square, `blank_usable`, and `min_corner_angle_deg`.
+
+The level saw cuts are always at the design ends, exactly 0 and H. To avoid
+small partials, shift the pattern row phase along the profile using a deterministic
+search within one row height; never move the cut heights. Rejected neighbors
+expose square `rim_whole` edges without dangling joint references. A05 remains
+unchanged.
+
 ## 9.3 Row layout (replaces §2.5 per-row counts and §8.4 C2 counts)
 1. **Constant count, constant row height.** Choose one seed count `n` per row for the whole surface and
    one physical row height `h` (arc length along the profile). Stones narrow or widen with the radius;
@@ -286,8 +303,10 @@ and legs may differ. Polygons are likewise symmetric about their vertical centre
 
 ## 9.6 Acceptance (replaces §5 matrix for this pattern)
 Required, all limits + closure + flatness + determinism + rotational gate:
-- Cylinder 18×60, cone 9→6, vase bulge: smooth (`depth = 0`) and symmetric relief at the default depth.
-- Report only: symmetric relief at 2× default depth; random relief at default depth, seeds 1..3.
+- Cylinder 18×60, cone 9→6, vase bulge: smooth (`depth = 0`) and symmetric relief at **depth = 0.25 in** (owner exact prototype parity request;
+  the configured default in §9.4 remains 0.3 in).
+- Report only: symmetric relief at 0.5 in; random relief at 0.25 in, seeds 1..3.
+  These follow twice/the requested 0.25 in reference, not the 0.3 in configured default.
 - STEP export of all six required cases for owner review.
 
 ## 9.7 Prototype reproduction

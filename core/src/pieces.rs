@@ -46,6 +46,44 @@ pub fn joint(a: &Plane, b: &Plane, neighbor: usize) -> Result<Side, PieceError> 
         neighbor: Some(neighbor),
     })
 }
+/// A06 joint in inches: below one degree half-angle use the face-perpendicular
+/// plane through the shared edge. A05 callers retain `joint` unchanged.
+/// Rejects invalid planes, nonincident or degenerate shared endpoints.
+pub fn triangle_joint(
+    face: &Plane,
+    other: &Plane,
+    from: Point,
+    to: Point,
+    neighbor: usize,
+) -> Result<Side, PieceError> {
+    if !valid_plane(face) || !valid_plane(other) {
+        return Err(PieceError::InvalidInput);
+    }
+    let bend = v(face.n).dot(&v(other.n)).clamp(-1., 1.).acos() / 2.;
+    if bend.to_degrees() >= 1. {
+        return joint(face, other, neighbor);
+    }
+    let edge = v(to) - v(from);
+    let normal = edge.cross(&v(face.n));
+    if !normal.norm().is_finite()
+        || normal.norm() <= GEOM_EPS
+        || [from, to].iter().any(|&p| {
+            (v(face.n).dot(&v(p)) - face.d).abs() > GEOM_EPS
+                || (v(other.n).dot(&v(p)) - other.d).abs() > GEOM_EPS
+        })
+    {
+        return Err(PieceError::InvalidInput);
+    }
+    let normal = normal.normalize();
+    Ok(Side {
+        plane: Plane {
+            n: normal.into(),
+            d: normal.dot(&v(from)),
+        },
+        kind: "joint",
+        neighbor: Some(neighbor),
+    })
+}
 fn valid_plane(p: &Plane) -> bool {
     p.d.is_finite() && p.n.iter().all(|x| x.is_finite()) && (v(p.n).norm() - 1.).abs() <= GEOM_EPS
 }

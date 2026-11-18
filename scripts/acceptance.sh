@@ -21,6 +21,14 @@ if [ "$build_status" -eq 0 ]; then
 else
     status=1
 fi
+# A06 C4 gates are additional to, never replacements for, A05 regressions.
+(cd core && cargo build --release --example a06_report) > "$logdir/a06-build.log" 2>&1
+if [ "$?" -eq 0 ]; then
+    taskset -c "$cpu" bash scripts/a06_matrix.sh "$CARGO_TARGET_DIR/release/examples/a06_report" "$logdir" || status=1
+else
+    status=1
+fi
+printf 'A06 C5 combined acceptance requires all six native closure/limit gates and owner STEP review; C6 held\n'
 printf 'acceptance exit=%s (0 allows only the explicitly accepted known timeout; inspect summary)\n' "$status"
 printf 'logs=%s\n' "$logdir"
 exit "$status"

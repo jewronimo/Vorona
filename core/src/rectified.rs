@@ -52,7 +52,24 @@ fn delta(a: f64, b: f64) -> f64 {
 /// Rejects invalid A06 settings, resource caps and nonmanifold/open interior edges.
 /// Does not consult legacy allowed sides, target size, variation or C2 defect repair.
 pub fn build(surface: &Surface, p: &Params) -> Result<Rectified, String> {
-    let layout = row_layout::choose(surface, p)?;
+    build_with_phase(surface, p, 0.)
+}
+
+/// Build A06 with a deterministic arc-length row phase in [0, one row height).
+/// Surface queries, depths and topology are reconstructed, never translated off-surface.
+pub fn build_with_phase(surface: &Surface, p: &Params, phase: f64) -> Result<Rectified, String> {
+    let mut layout = row_layout::choose(surface, p)?;
+    let height = layout
+        .iter()
+        .map(|r| r.height)
+        .fold(f64::INFINITY, f64::min);
+    if !phase.is_finite() || phase < 0. || phase >= height {
+        return Err("A06 pattern phase must lie within one row height".into());
+    }
+    for row in &mut layout {
+        row.s += phase;
+        row.width = TAU * surface.r(row.s) / row.count as f64;
+    }
     let spacing = layout[layout.len() / 2].width;
     if p.pattern != Pattern::VoronoiTriangles
         || !spacing.is_finite()

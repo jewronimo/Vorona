@@ -11,6 +11,10 @@ fn input() -> CoreInput {
     ))
     .unwrap();
     i.params.pattern = Pattern::VoronoiTriangles;
+    // Switching an already deserialized A05 fixture preserves its explicit 70°
+    // minimum. A06 §9 uses 30°; requiring every triangle angle >= 70° is
+    // infeasible. Override only this pattern-specific setting, not A05 defaults.
+    i.params.min_corner_angle_deg = 30.0;
     i.params.min_triangle_edge = 1.5;
     i.params.max_polygon_edge = 3.0;
     i.params.depth = 1.0;
@@ -281,4 +285,17 @@ fn section9_defaults_and_explicit_zero() {
     v["params"]["max_polygon_edge"] = serde_json::json!(4.);
     let i: CoreInput = serde_json::from_value(v).unwrap();
     assert_eq!(i.params.depth, 0.);
+}
+
+#[test]
+fn section9_empty_triangle_interval_is_infeasible() {
+    let i = input();
+    let s = Surface::from_profile(&i.surface.profile).unwrap();
+    let mut p = i.params;
+    p.min_triangle_edge = 4.;
+    p.max_polygon_edge = 3.;
+    assert_eq!(
+        rectified::row_layout::choose(&s, &p).unwrap_err(),
+        "no feasible A06 n/h layout: min_triangle_edge exceeds max_polygon_edge"
+    );
 }

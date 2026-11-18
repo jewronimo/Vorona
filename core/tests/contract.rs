@@ -315,7 +315,7 @@ fn depth_and_reflex_angle_contract_defaults_and_ranges() {
 }
 
 #[test]
-fn a06_pattern_defaults_and_pending_dispatch() {
+fn a06_pattern_defaults_and_native_dispatch() {
     let mut raw: serde_json::Value = serde_json::from_str(INPUT).unwrap();
     for key in [
         "pattern",
@@ -338,15 +338,11 @@ fn a06_pattern_defaults_and_pending_dispatch() {
     assert_eq!(default.params.min_triangle_edge, 1.5);
     assert_eq!(default.params.max_back_gap, 0.5);
     assert_eq!(default.params.relief_base, ReliefBase::default());
-    for output in [
-        vstone_core::generate(&default),
-        vstone_core::feasibility_only(&default),
-    ] {
-        assert_eq!(output.status, "error");
-        assert!(output.message.contains("voronoi_triangles") && output.message.contains("pending"));
-        assert!(output.pieces.is_empty());
-        assert!(output.feasibility.suggestions.is_empty());
-    }
+    let output = vstone_core::feasibility_only(&default);
+    assert_eq!(output.status, "ok");
+    assert!(output.pieces.is_empty());
+    assert!(output.feasibility.suggestions.is_empty());
+    assert!(!output.feasibility.columns.is_empty());
     raw["params"]["pattern"] = serde_json::json!("voronoi");
     let legacy: CoreInput = serde_json::from_value(raw.clone()).unwrap();
     assert_eq!(legacy.params.depth, 1.5);

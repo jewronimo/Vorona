@@ -57,6 +57,13 @@ pub fn choose(surface: &Surface, p: &Params) -> Result<Vec<PlannedRow>, String> 
     {
         return Err("invalid A06 row-layout settings".into());
     }
+    // Every triangle edge must satisfy both bounds. No count/stretch can
+    // rescue an empty interval: reject it before the quadratic fallback DP.
+    if p.min_triangle_edge > p.max_polygon_edge {
+        return Err(
+            "no feasible A06 n/h layout: min_triangle_edge exceeds max_polygon_edge".into(),
+        );
+    }
     let knots = surface.layout_knots();
     let radii: Vec<_> = knots.iter().map(|&s| surface.r(s)).collect();
     let max_r = radii.iter().copied().fold(0., f64::max);
