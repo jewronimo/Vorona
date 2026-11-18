@@ -24,7 +24,7 @@ Lay each piece flat (outer face up) and pack pieces onto 12 × 12 blanks.
 
 ### Implementation for review — 2026-11-18
 
-Branch `task/C7-nesting`, separate worktree `../voronoi-stone-c7`, base
+Branch `task/C7-nesting`, separate worktree `runs/worktrees/C7-nesting`, base
 `cee456d`. Added rigid area-centroid flattening, deterministic longest-edge
 selection, normal/thickness/planarity guards, and deterministic conservative
 nesting. Outer AND inner projections are enclosed by rotated rectangles;
@@ -55,3 +55,7 @@ Additional targeted full-path legacy regression:
 passed, including two generated-output SHA-256 equality checks and the retained
 legacy C6 pending guard. This is a targeted development run, not official gate
 certification. Working tree is clean after the implementation/evidence commits.
+
+### Parent verification — 2026-11-18
+
+Official `make dev-check` passed on commit `43f12c3`: `runs/logs/C7-dev-check-0926.log`. Main post-C6 merge check passed: main worktree `runs/logs/main-C6-post-merge-0915.log`. Targeted tests use enclosing rectangles to establish clearance, not the polygon-distance test explicitly named in the card. The full acceptance matrix and production A06 layout review remain outstanding; checklist left open pending review and those gates. No C7 merge.
