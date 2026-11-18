@@ -1,7 +1,7 @@
 //! Deterministic assembly numbering and outside-view unwrapped maps.
 use crate::{model::Piece, surface::Surface};
 use std::{collections::BTreeMap, f64::consts::TAU};
-/// Number inch-valued pieces bottom-to-top, then counter-clockwise, preserving
+/// Number inch-valued pieces bottom-to-top, then counter-clockwise seen from +Y, preserving
 /// adjacency. Caller supplies the derived target pitch in inches.
 pub fn number(pieces: &mut [Piece], surface: &Surface, target: f64) -> BTreeMap<String, String> {
     let centroid = |p: &Piece| {
@@ -13,6 +13,8 @@ pub fn number(pieces: &mut [Piece], surface: &Surface, target: f64) -> BTreeMap<
         }
         c
     };
+    // Surface theta increases from +X toward +Z, clockwise when seen from +Y.
+    // Negate Z for the owner-required counter-clockwise numbering convention.
     pieces.sort_by(|a, b| {
         let x = centroid(a);
         let y = centroid(b);
@@ -20,9 +22,10 @@ pub fn number(pieces: &mut [Piece], surface: &Surface, target: f64) -> BTreeMap<
             .floor()
             .total_cmp(&(y[1] / (0.5 * target)).floor())
             .then(
-                x[2].atan2(x[0])
+                (-x[2])
+                    .atan2(x[0])
                     .rem_euclid(TAU)
-                    .total_cmp(&y[2].atan2(y[0]).rem_euclid(TAU)),
+                    .total_cmp(&(-y[2]).atan2(y[0]).rem_euclid(TAU)),
             )
             .then(a.id.cmp(&b.id))
     });

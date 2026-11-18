@@ -64,6 +64,31 @@ fn ring_checks_and_numbering() {
     }
 }
 #[test]
+fn numbering_is_counter_clockwise_seen_from_positive_y() {
+    let (mut a, p) = fixture();
+    let s = Surface::from_profile(&p.surface.profile).unwrap();
+    // Input order must not choose the winding. The ring starts on +X; from
+    // +Y, counter-clockwise proceeds toward -Z (right-hand rule about +Y).
+    a.pieces.reverse();
+    numbering::number(&mut a.pieces, &s, 6.5);
+    assert!(a.pieces[0].plane.n[0] > 0.99);
+    assert!(a.pieces[1].plane.n[2] < 0.);
+    let centroid = |p: &vstone_core::model::Piece| {
+        let n = p.outer.len() as f64;
+        [
+            p.outer.iter().map(|v| v[0]).sum::<f64>() / n,
+            p.outer.iter().map(|v| v[2]).sum::<f64>() / n,
+        ]
+    };
+    for i in 0..a.pieces.len() {
+        let x = centroid(&a.pieces[i]);
+        let y = centroid(&a.pieces[(i + 1) % a.pieces.len()]);
+        // Y component of the radial-vector cross product is positive,
+        // including the seam from the last numbered piece back to P001.
+        assert!(x[1] * y[0] - x[0] * y[1] > 0.);
+    }
+}
+#[test]
 fn each_check_names_its_broken_piece() {
     for index in 0..8 {
         let (mut a, p) = fixture();
