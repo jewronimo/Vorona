@@ -49,3 +49,9 @@ using a copied isolated source tree `/tmp/vstone-c7` and isolated target dir
 `/tmp/vstone-c7-target`; no host Rust. Parent owns official `make dev-check`,
 acceptance, numerical production follow-up and review. Checklist stays pending
 those gates. No merge, push, or official checks executed by this child.
+
+Additional targeted full-path legacy regression:
+`runs/logs/C7-contract.log` — `cargo test --test contract deterministic_and_errors`
+passed, including two generated-output SHA-256 equality checks and the retained
+legacy C6 pending guard. This is a targeted development run, not official gate
+certification. Working tree is clean after the implementation/evidence commits.
