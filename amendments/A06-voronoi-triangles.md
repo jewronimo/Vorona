@@ -296,13 +296,16 @@ unchanged.
   reworked. Prototype: 0.25 in random relief on 3 in stones failed (torn pieces).
 
 ## 9.5 Symmetric solve (replaces the "solve one row and copy" rule where counts change)
+- Owner decision (2026-11-19): randomness 0 is dihedral: zero sideways tilt,
+  mirror-paired corner slides, and a maximum mirror error of 1e-6 inch for
+  every whole stone. Include the mirror gate in reports and acceptance.
 - Constant-count stretches: solve one representative stone per row (2 tilts) plus its corner slides,
   copy by exact rotation `2π/n`. Gate: equal spacing and equal size per row within 1e-6.
 - At a count change (9.3.3): solve one sector of angle `2π/g` and copy `g` times; gate the `g`-fold
   repeat within 1e-6.
 
 ## 9.6 Acceptance (replaces §5 matrix for this pattern)
-Required, all limits + closure + flatness + determinism + rotational gate:
+Required, all limits + closure + flatness + determinism + rotational and mirror gates:
 - Cylinder 18×60, cone 9→6, vase bulge: smooth (`depth = 0`) and symmetric relief at **depth = 0.25 in** (owner exact prototype parity request;
   matching the configured default of 0.25 in in §9.4).
 - Report only: symmetric relief at 0.5 in; random relief at 0.25 in, seeds 1..3.
