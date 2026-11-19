@@ -67,7 +67,7 @@ fn deterministic_and_errors() {
         .validation
         .checks
         .iter()
-        .any(|c| c.id == "C6-C7-pending" && !c.passed));
+        .any(|c| c.id == "C6-pending" && !c.passed));
     let o: CoreOutput = serde_json::from_str(&generate_json("{bad")).unwrap();
     assert_eq!(o.status, "error");
 }

@@ -38,14 +38,9 @@ then `AGENTS.md`, `amendments/A04`–`A06` (A06 incl. §8 and §9), and the task
 - The older A05 pattern (`pattern = "voronoi"`) is kept unchanged with its own regression matrix.
 
 ## 4. State on 2026-11-18
-- `main` = `2435e48` (A06 solver + pieces merged, pushed; dev-check passes).
-- `task/C5-C6-triangles` (`b22d139`, `6df3a03`): shared near-coplanar joint + C6 numbering/validation.
-  Approved by Claude, conditional on dev-check passing and the C6 checklist ticked; JerryClaw then merges.
-  Evidence: `runs/worktrees/C5-C6-triangles/runs/logs/C6-full-path/` — six required cases, 0 C6 failures,
-  only `C7-pending`; numbered STEP files there.
-- Next card: **C7** (layout/nesting onto 12×12 blanks). Then S4–S7, I1, G1. Domes later.
-- Known open follow-ups: cylinder A05 r0.5/seed3 timeout (accepted); random relief rework; `docs/requests/006`,
-  `007` are untracked leftovers in the main folder (already incorporated into A06 §8).
+- C5/C6 and C7 (flat transforms and conservative rectangle nesting) are merged into main. See git log for the merge commits and `tasks/C7-nesting.md` for review evidence.
+- Next: **S4** flat layout output, then S5–S7, I1 and G1, stopping for review before each merge. C7b shape-aware packing is a separate, not-started follow-up.
+- Known follow-ups: cylinder A05 r0.5/seed3 timeout (accepted); random relief rework. Requests 006 and 007 are tracked historical drafts; A06 §8 is the governing addendum.
 
 ## 5. How to check logs (device shell on the Mac)
 Repo on the Mac: `~/Projects/Vorona/voronoi-stone`; worktrees in `runs/worktrees/<card>/`, logs in each
