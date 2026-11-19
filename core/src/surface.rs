@@ -426,6 +426,23 @@ impl crate::planes::SurfaceQueries for Surface {
     }
 }
 
+// The rigid action belongs to the surface adapter. C4 does not know its axis.
+impl crate::rectified_planes::PeriodicSymmetry for Surface {
+    fn reflect_vector(&self, v: [f64; 3]) -> Result<[f64; 3], String> {
+        Ok([v[0], v[1], -v[2]])
+    }
+    fn physical_rims(&self) -> Option<[f64; 2]> {
+        Some(self.y_range())
+    }
+    fn rotate_vector(&self, v: [f64; 3], angle: f64) -> Result<[f64; 3], String> {
+        let (s, c) = angle.sin_cos();
+        Ok([c * v[0] - s * v[2], v[1], s * v[0] + c * v[2]])
+    }
+    fn rotate_point(&self, p: [f64; 3], angle: f64) -> Result<[f64; 3], String> {
+        self.rotate_vector(p, angle)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -441,19 +458,5 @@ mod tests {
         for i in 0..surface.points.len() {
             assert_eq!(surface.profile(surface.arcs[i]), surface.points[i]);
         }
-    }
-}
-
-// The rigid action belongs to the surface adapter. C4 does not know its axis.
-impl crate::rectified_planes::PeriodicSymmetry for Surface {
-    fn physical_rims(&self) -> Option<[f64; 2]> {
-        Some(self.y_range())
-    }
-    fn rotate_vector(&self, v: [f64; 3], angle: f64) -> Result<[f64; 3], String> {
-        let (s, c) = angle.sin_cos();
-        Ok([c * v[0] - s * v[2], v[1], s * v[0] + c * v[2]])
-    }
-    fn rotate_point(&self, p: [f64; 3], angle: f64) -> Result<[f64; 3], String> {
-        self.rotate_vector(p, angle)
     }
 }

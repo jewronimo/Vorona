@@ -60,6 +60,14 @@ fn basis(n: V) -> (V, V) {
 /// Generic rigid periodic action supplied by the surface adapter, not C4.
 /// Angles are chart radians. A non-symmetric surface must reject symmetric use.
 pub trait PeriodicSymmetry: SurfaceQueries {
+    /// Reflect a vector in the chart's zero-angle meridian; reject unsupported surfaces.
+    fn reflect_vector(&self, _vector: V) -> Result<V, String> {
+        Err("surface does not support meridian reflection".into())
+    }
+    /// Reflect an inch-valued point in that same meridian.
+    fn reflect_point(&self, point: V) -> Result<V, String> {
+        self.reflect_vector(point)
+    }
     /// Original physical end planes in inches; generic unbounded charts have none.
     fn physical_rims(&self) -> Option<[f64; 2]> {
         None
@@ -219,6 +227,7 @@ struct Problem<'a, S> {
     copies: Vec<CornerCopy>,
     plane_reps: Vec<usize>,
     corner_reps: Vec<(usize, f64)>,
+    slide_scale: Vec<f64>,
 }
 impl<'a, S: PeriodicSymmetry> Problem<'a, S> {
     fn new(s: &'a S, t: &'a Rectified, p: &'a Params) -> Result<Self, String> {
@@ -231,7 +240,16 @@ impl<'a, S: PeriodicSymmetry> Problem<'a, S> {
             let (q, normal) = s.frame([seed.u, seed.v]);
             points.push(sub(q, mul(normal, seed.depth)));
             normals.push(normal);
-            axes.push(basis(normal));
+            // Transport the zero-meridian basis, rather than switching the
+            // arbitrary Cartesian basis on steep profile sections.
+            let axes_at_seed = if p.randomness == 0. {
+                let (_, meridian_normal) = s.frame([0., seed.v]);
+                let (a, b) = basis(meridian_normal);
+                (s.rotate_vector(a, seed.u)?, s.rotate_vector(b, seed.u)?)
+            } else {
+                basis(normal)
+            };
+            axes.push(axes_at_seed);
         }
         // Circumcentres in an edge-local unwrapped periodic chart.
         let mut targets = Vec::new();
@@ -301,6 +319,7 @@ impl<'a, S: PeriodicSymmetry> Problem<'a, S> {
         let mut groups = BTreeMap::new();
         for &rep in &plane_reps {
             for k in 0..2 {
+                let k = if p.randomness == 0. { 1 } else { k };
                 let next = groups.len();
                 map.push(*groups.entry((0, rep, k, 0)).or_insert(next));
             }
@@ -344,7 +363,65 @@ impl<'a, S: PeriodicSymmetry> Problem<'a, S> {
             let next = groups.len();
             map.push(*groups.entry((1, rep, 0, 0)).or_insert(next));
         }
-        let nv = groups.len();
+        // Reflection reverses the orientation of the two-plane line. Pair the
+        // signed slide variables, not the resulting positions (no averaging).
+        let mut slide_scale = vec![1.; t.corners.len()];
+        if p.randomness == 0. {
+            let reflected_seed: Vec<usize> = seeds
+                .iter()
+                .map(|seed| {
+                    row_ids[seed.row]
+                        .iter()
+                        .copied()
+                        .min_by(|&a, &b| {
+                            delta(seeds[a].u, -seed.u)
+                                .abs()
+                                .total_cmp(&delta(seeds[b].u, -seed.u).abs())
+                        })
+                        .unwrap()
+                })
+                .collect();
+            let old_map = map.clone();
+            for (k, e) in t.corners.iter().enumerate() {
+                let [a, b] = e.seeds.map(|i| reflected_seed[i]);
+                let reflected = *edge_ids
+                    .get(&[a.min(b), a.max(b)])
+                    .ok_or("Delaunay topology does not admit meridian reflection")?;
+                let (r, angle) = corner_reps[reflected];
+                let (own, _) = corner_reps[k];
+                let [i, j] = directed(t, t.corners[own].seeds);
+                let [a, b] = directed(t, t.corners[r].seeds);
+                // At zero sideways tilt the line's reflection parity is fixed,
+                // independent of the meridional tilt magnitude.
+                let w = cross(normals[i], normals[j]);
+                let reflected_w = s.rotate_vector(s.reflect_vector(w)?, -angle)?;
+                let sign = if dot(reflected_w, cross(normals[a], normals[b])) < 0. {
+                    -1.
+                } else {
+                    1.
+                };
+                if r < own {
+                    map[2 * n + k] = old_map[2 * n + r];
+                    slide_scale[k] = sign;
+                } else if r == own && sign < 0. {
+                    slide_scale[k] = 0.;
+                }
+            }
+            for (k, &scale) in slide_scale.iter().enumerate() {
+                if scale == 0. {
+                    // This slot is multiplied by zero; do not retain a dead
+                    // optimization variable for an on-axis corner.
+                    map[2 * n + k] = map[0];
+                }
+            }
+            // Compact away variables eliminated by reflection constraints.
+            let mut compact = BTreeMap::new();
+            for index in &mut map {
+                let next = compact.len();
+                *index = *compact.entry(*index).or_insert(next);
+            }
+        }
+        let nv = map.iter().copied().max().map_or(0, |v| v + 1);
         Ok(Self {
             s,
             t,
@@ -359,6 +436,7 @@ impl<'a, S: PeriodicSymmetry> Problem<'a, S> {
             copies,
             plane_reps,
             corner_reps,
+            slide_scale,
         })
     }
     fn geometry(&self, x: &[f64]) -> Result<Geometry, String> {
@@ -372,7 +450,14 @@ impl<'a, S: PeriodicSymmetry> Problem<'a, S> {
                 unit(add(
                     self.normals[i],
                     add(
-                        mul(self.axes[i].0, x[self.map[2 * i]]),
+                        mul(
+                            self.axes[i].0,
+                            if self.p.randomness == 0. {
+                                0.
+                            } else {
+                                x[self.map[2 * i]]
+                            },
+                        ),
                         mul(self.axes[i].1, x[self.map[2 * i + 1]]),
                     ),
                 ))?
@@ -394,7 +479,7 @@ impl<'a, S: PeriodicSymmetry> Problem<'a, S> {
                     &planes[i],
                     &planes[j],
                     self.targets[k],
-                    x[self.map[2 * n + k]],
+                    self.slide_scale[k] * x[self.map[2 * n + k]],
                 )?
             };
             if !point.iter().all(|v| v.is_finite()) {
@@ -403,6 +488,36 @@ impl<'a, S: PeriodicSymmetry> Problem<'a, S> {
             corners.push(point);
         }
         Ok((planes, corners))
+    }
+    // Unordered corner-set reflection in the stone's vertical chart meridian.
+    // Checks polygons AND interstitial triangles; rotation alone is insufficient.
+    fn mirror_error(&self, piece: usize, ids: &[usize], corners: &[V]) -> Result<f64, String> {
+        let seeds = &self.t.delaunay.tiles;
+        let n = seeds.len();
+        let angles: Vec<f64> = if piece < n {
+            vec![seeds[piece].u]
+        } else {
+            self.t.delaunay.corners[piece - n]
+                .iter()
+                .map(|&i| seeds[i].u)
+                .collect()
+        };
+        let angle = angles
+            .iter()
+            .map(|a| a.sin())
+            .sum::<f64>()
+            .atan2(angles.iter().map(|a| a.cos()).sum::<f64>());
+        let mut error = 0.0_f64;
+        for &k in ids {
+            let local = self.s.rotate_point(corners[k], -angle)?;
+            let reflected = self.s.rotate_point(self.s.reflect_point(local)?, angle)?;
+            let distance = ids
+                .iter()
+                .map(|&j| norm(sub(reflected, corners[j])))
+                .fold(f64::INFINITY, f64::min);
+            error = error.max(distance);
+        }
+        Ok(error)
     }
     fn symmetry_rows(&self, corners: &[V], squares: &[f64]) -> Result<Vec<RowGate>, String> {
         let mut rows = self.rows.clone();
@@ -535,6 +650,11 @@ impl<'a, S: PeriodicSymmetry> Problem<'a, S> {
         }
         for _ in 0..2 * n {
             support.push(Vec::new());
+        }
+        if self.p.randomness == 0. {
+            for deps in &piece_deps {
+                support.push(deps.iter().copied().collect());
+            }
         }
         for row in &self.rows {
             if row.required {
@@ -848,6 +968,15 @@ impl<'a, S: PeriodicSymmetry> Problem<'a, S> {
                 true,
             );
         }
+        if self.p.randomness == 0. {
+            for (i, ids) in polygons.iter().enumerate() {
+                let inner_ids: Vec<_> = (0..inner[i].len()).collect();
+                let error = self
+                    .mirror_error(i, ids, &corners)?
+                    .max(self.mirror_error(i, &inner_ids, &inner[i])?);
+                barrier(i, "stone_mirror", error / 1e-6 - 1., whole[i]);
+            }
+        }
         let symmetry_rows = self.symmetry_rows(&corners, &squares)?;
         for row in &symmetry_rows {
             if let Some(representative) = row.representative {
@@ -859,6 +988,17 @@ impl<'a, S: PeriodicSymmetry> Problem<'a, S> {
                     ("row_size", row.size_error.unwrap()),
                 ] {
                     barrier(representative, name, error / 1e-6 - 1., true);
+                }
+            }
+        }
+        if self.p.randomness == 0. {
+            for (i, ids) in polygons.iter().enumerate() {
+                let inner_ids: Vec<_> = (0..inner[i].len()).collect();
+                let error = self
+                    .mirror_error(i, ids, &corners)?
+                    .max(self.mirror_error(i, &inner_ids, &inner[i])?);
+                if whole[i] && error > 1e-6 {
+                    violations.push((i, "stone_mirror_gate".into()));
                 }
             }
         }
@@ -1550,6 +1690,50 @@ mod section9_tests {
             }
             assert!(colors.len() < problem.nv);
             assert_eq!(problem.geometry(&x).unwrap(), problem.geometry(&x).unwrap());
+        }
+    }
+    #[test]
+    fn dihedral_unknowns_preserve_every_stone_and_detect_mirror_damage() {
+        for profile in ["cylinder", "cone_9_to_6", "vase_bulge", "flare"] {
+            for depth in [0., 0.25] {
+                let (mut s, mut p, _) = setup(if profile == "flare" {
+                    "cylinder"
+                } else {
+                    profile
+                });
+                if profile == "flare" {
+                    s = Surface::from_profile(&[[6., 0.], [9., 60.]]).unwrap();
+                }
+                p.depth = depth;
+                let t = rectified::build(&s, &p).unwrap();
+                let problem = Problem::new(&s, &t, &p).unwrap();
+                let x: Vec<_> = (0..problem.nv).map(|k| 0.015 * (k as f64).cos()).collect();
+                let (planes, mut corners) = problem.geometry(&x).unwrap();
+                for (i, seed) in t.delaunay.tiles.iter().enumerate() {
+                    let tangent = s.rotate_vector([0., 0., 1.], seed.u).unwrap();
+                    assert!(dot(planes[i].n, tangent).abs() < 1e-12);
+                }
+                let mut polygons = t.polygons.clone();
+                polygons.extend(t.triangles.iter().map(|v| v.to_vec()));
+                for (i, ids) in polygons.iter().enumerate() {
+                    let error = problem.mirror_error(i, ids, &corners).unwrap();
+                    assert!(
+                        error <= 1e-6,
+                        "{profile} depth={depth} piece={i} mirror={error}"
+                    );
+                }
+                let (_, measured, violations) = problem.evaluate(&x).unwrap();
+                assert!(
+                    measured.limit_deficits["stone_mirror"][1] <= 0.,
+                    "{profile} depth={depth}: inner or outer mirror gate failed"
+                );
+                assert!(!violations
+                    .iter()
+                    .any(|(_, name)| name == "stone_mirror_gate"));
+                let k = polygons[0][0];
+                corners[k][1] += 0.01;
+                assert!(problem.mirror_error(0, &polygons[0], &corners).unwrap() > 1e-6);
+            }
         }
     }
     #[test]

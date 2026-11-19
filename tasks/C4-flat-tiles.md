@@ -1120,3 +1120,53 @@ piece tests 8/8, focused clippy pass. No official gate or manufacturing claim.
 ### Final A06 review update
 
 The six required cases passed with deterministic repeats and fixed cuts at 0/H using deterministic pattern-phase search. STEP exports: `runs/logs/a06-fixed-rims/step/`. Default relief depth is 0.25 in. Earlier acceptance and rim-policy status notes are historical.
+
+
+### Dihedral symmetry repair — 2026-11-19 (focused verification, not acceptance)
+
+New branch `task/dihedral-core`, based on main `a7e3b05` (not the old
+`task/symmetry-repair` branch). Owner request: randomness zero must prohibit
+sideways tilt and pair signed two-plane corner slides under reflection.
+
+- Symmetric plane variables now retain only meridional tilt; the meridian
+  basis is rigidly transported even on steep profile sections.
+- Reflection-orbit corner slides share signed variables; reflection-fixed
+  transverse slides are exactly zero. Rotation copies remain exact. No
+  geometric averaging and no tolerance/limit relaxation.
+- Added surface-owned meridian reflection queries, rejecting unsupported
+  adapters rather than embedding surface-axis formulas in the solver.
+- `stone_mirror` reports the normalized maximum outer AND inner corner-set
+  reflection error for each whole polygon/triangle. An independent exact
+  `stone_mirror_gate` violation blocks success above 1e-6 inch.
+- Updated sparse residual dependencies for the new per-piece gate.
+- New arbitrary-nonzero-variable regression covers cylinder, cone, vase and
+  outward flare at depths 0 and .25; checks zero sideways tilt, every stone's
+  mirror error, measured inner/outer whole-stone gates, and corruption rejection.
+- Container verification: `cargo test --lib`: 26 passed, 1 ignored;
+  `cargo clippy --all-targets -- -D warnings`: passed. Existing rotational,
+  sparse-color, exact two-plane incidence and byte-determinism tests pass.
+- A broader `cargo test` was intentionally interrupted in contract integration
+  solves; it is NOT a passed full-suite result. Raw log retained.
+- Raw logs and bounded one-core release diagnostics are in this worktree's
+  `runs/logs/dihedral-core/` (`focused.log`, `broad-interrupted.log`,
+  `summary.json`, per-case JSON and attempt logs, `run_cases.py`).
+- No official `make dev-check`, acceptance, merge, push, Python changes or STEP
+  exports performed. Full production acceptance and owner visual review remain
+  pending; bounded diagnostic case outcomes are recorded separately below.
+
+Bounded release diagnostics (`a06_report`, seed1, randomness0, one CPU, 60s
+per-case deadline; NOT official acceptance):
+
+| Profile | depth0 | depth.25 |
+| --- | --- | --- |
+| Cylinder | PASS 0.54s | PASS 13.83s |
+| Cone 9→6 | PASS 0.60s | INCOMPLETE timeout60 |
+| Vase bulge | PASS 0.43s | PASS 27.07s |
+| Outward flare 6→9, height60 | PASS 0.65s | PASS 44.20s |
+
+PASS means the runner returned accepted geometry including closure, no solid
+errors and no violations. Cone relief remains a runtime/solver blocker, not a
+waived pass. Its incomplete deterministic starts retained edge/triangle-size,
+angle and back-gap deficits; mirror itself stayed below tolerance. Across ALL
+completed attempt reports in these eight runs, the largest measured normalized
+`stone_mirror` deficit corresponds to 2.68e-9 inch (gate 1e-6 inch).
