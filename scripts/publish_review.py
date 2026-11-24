@@ -75,13 +75,16 @@ def publish(path, host, root, rsync):
     parent = f'{root}/{when.year}/{day}'
     with tempfile.TemporaryDirectory(prefix='vorona-review-') as tmp:
         stage = Path(tmp)
+        details = stage / 'details'
+        details.mkdir()
         for pattern in ('*.step', '*.png', 'a06-summary.log', 'a06-numbered-summary.jsonl', 'host-provenance.log'):
             for source in path.glob(pattern):
                 if source.is_file():
-                    shutil.copy2(source, stage / source.name)
+                    destination = stage if source.suffix == '.step' else details
+                    shutil.copy2(source, destination / source.name)
         matrix = path / 'matrix96.stderr.log'
         if matrix.exists():
-            (stage / 'matrix96-summary.txt').write_text(matrix.read_text())
+            (details / 'matrix96-summary.txt').write_text(matrix.read_text())
         lines = [f'Acceptance: {path.name}', f'Branch: {branch}', f'Commit: {commit}', f'Result: {outcome}', '', 'Each numbered STEP is the named shape and settings, for visual review.', 'd0.0 is smooth; d0.25 is relief 0.25. Constant/proportional describes row sizing.', '']
         summary = path / 'a06-numbered-summary.jsonl'
         if summary.exists():
@@ -89,7 +92,7 @@ def publish(path, host, root, rsync):
                 record = json.loads(line)
                 case = record['case']
                 output = path / f'{case}-output-0.json'
-                blanks = 'unknown'
+                blanks = 'not recorded'
                 if output.exists():
                     message = json.loads(output.read_text()).get('message', '')
                     found = re.search(r'(\d+) blanks', message)
@@ -99,35 +102,102 @@ def publish(path, host, root, rsync):
         else:
             lines.append('No numbered case summary was produced.')
         lines += ['', 'a06-summary.log: native case outcomes; a06-numbered-summary.jsonl: numbered case results.', 'matrix96-summary.txt: A05 matrix summary; host-provenance.log: source state.', 'SHA256SUMS verifies the files in this folder.']
+        # Reconstruct the old publisher's exact manifest to recognize existing flat-layout
+        # publications. This is a byte-for-byte comparison, not a filename-only match.
+        legacy_readme = ('\n'.join(lines) + '\n').replace('blanks not recorded;', 'blanks unknown;')
+        legacy_hashes = {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+                         for p in stage.rglob('*') if p.is_file()}
+        legacy_hashes['README.txt'] = hashlib.sha256(legacy_readme.encode()).hexdigest()
+        legacy_manifest = ''.join(f'{legacy_hashes[n]}  {n}\n' for n in sorted(legacy_hashes))
+        lines[-3:] = ['Technical logs and renders are in details/.',
+                      'details/matrix96-summary.txt: A05 matrix summary; details/host-provenance.log: source state.',
+                      'details/SHA256SUMS verifies all files relative to this folder.']
         (stage / 'README.txt').write_text('\n'.join(lines) + '\n')
-        checks = []
-        for file in sorted(stage.iterdir()):
-            digest = hashlib.sha256()
-            with file.open('rb') as data:
-                for chunk in iter(lambda: data.read(1024 * 1024), b''):
-                    digest.update(chunk)
-            checks.append(f'{digest.hexdigest()}  {file.name}\n')
-        (stage / 'SHA256SUMS').write_text(''.join(checks))
+
+        def write_manifest():
+            checks = []
+            for file in sorted(stage.rglob('*')):
+                if not file.is_file() or file == details / 'SHA256SUMS':
+                    continue
+                digest = hashlib.sha256()
+                with file.open('rb') as data:
+                    for chunk in iter(lambda: data.read(1024 * 1024), b''):
+                        digest.update(chunk)
+                checks.append(f'{digest.hexdigest()}  {file.relative_to(stage).as_posix()}\n')
+            text = ''.join(checks)
+            (details / 'SHA256SUMS').write_text(text)
+            return text
+
+        manifest = write_manifest()
+        base_readme = (stage / 'README.txt').read_text()
+        reason = 'This is a new copy because the contents differ from an earlier publication of this acceptance.\n'
+        (stage / 'README.txt').write_text(base_readme + reason)
+        changed_manifest = write_manifest()
+        (stage / 'README.txt').write_text(base_readme)
+        write_manifest()
         q = shlex.quote
         ssh(host, f'mkdir -p {q(parent)}')
-        index = 1
-        while True:
-            suffix = '' if index == 1 else f' ({index})'
-            final = f'{parent}/{name}{suffix}'
-            partial = final + '.partial'
-            # mkdir is atomic and never reuses an existing incomplete transfer.
-            cmd = f'if [ -e {q(final)} ] || [ -e {q(partial)} ]; then exit 17; fi; mkdir {q(partial)}'
-            res = ssh(host, cmd, check=False)
-            if res.returncode == 0:
-                break
-            if res.returncode != 17:
-                raise RuntimeError(res.stderr or 'Unable to reserve destination')
-            index += 1
+        # Only a matching acceptance ID and exact manifest qualify as a duplicate.
+        # Check both the current layout and the previously published flat layout.
+        scan = (f'for f in {q(parent)}/*/README.txt; do '
+                f'[ -f "$f" ] || continue; '
+                f'if grep -F -x -q -- {q("Acceptance: " + path.name)} "$f"; then '
+                'printf "%s\\n" "${f%/README.txt}"; fi; done')
+        found = ssh(host, scan).stdout.splitlines()
+        partial_candidates = []
+        different = False
+        for existing in found:
+            is_partial = existing.endswith('.partial')
+            manifest_path = existing + ('/details/SHA256SUMS' if is_partial else '/details/SHA256SUMS')
+            result = ssh(host, f'if [ -f {q(manifest_path)} ]; then cat {q(manifest_path)}; '
+                               f'elif [ -f {q(existing + "/SHA256SUMS")} ]; then cat {q(existing + "/SHA256SUMS")}; fi')
+            same = result.stdout in (manifest, changed_manifest, legacy_manifest)
+            if not is_partial and same:
+                print(f'already published at {existing}', flush=True)
+                return
+            if is_partial:
+                recorded = result.stdout
+                if not recorded:
+                    readme = ssh(host, f'cat {q(existing + "/README.txt")}').stdout
+                    if readme == base_readme:
+                        recorded = manifest
+                    elif readme == base_readme + reason:
+                        recorded = changed_manifest
+                partial_candidates.append((existing, recorded))
+            else:
+                different = True
+        if different:
+            # The reason is recorded before checksums are computed.
+            with (stage / 'README.txt').open('a') as readme:
+                readme.write(reason)
+            manifest = write_manifest()
+        partial_match = next((p for p, m in partial_candidates if m == manifest), None)
+        if partial_match:
+            partial = partial_match
+            final = partial[:-len('.partial')]
+            print(f'Resuming partial upload: {partial}', flush=True)
+        else:
+            index = 1
+            while True:
+                suffix = '' if index == 1 else f' ({index})'
+                final = f'{parent}/{name}{suffix}'
+                partial = final + '.partial'
+                cmd = f'if [ -e {q(final)} ] || [ -e {q(partial)} ]; then exit 17; fi; mkdir {q(partial)}'
+                res = ssh(host, cmd, check=False)
+                if res.returncode == 0:
+                    break
+                if res.returncode != 17:
+                    raise RuntimeError(res.stderr or 'Unable to reserve destination')
+                index += 1
+            # Record identity and expected content first, so interrupted transfers can resume.
+            ssh(host, f'mkdir -p {q(partial + "/details")} && '
+                      f'printf %s {q((stage / "README.txt").read_text())} > {q(partial + "/README.txt")} && '
+                      f'printf %s {q(manifest)} > {q(partial + "/details/SHA256SUMS")}')
         shell = shlex.join(['ssh', *SSH_OPTIONS])
         subprocess.run([rsync, '-s', '-a', '--partial', '-e', shell, str(stage) + '/', f'{host}:{partial}/'], check=True)
-        verify = ssh(host, f'cd {q(partial)} && sha256sum -c SHA256SUMS')
+        verify = ssh(host, f'cd {q(partial)} && sha256sum -c details/SHA256SUMS')
         print(verify.stdout, end='')
-        relative = f'{when.year}/{day}/{name}{suffix}'
+        relative = f'{when.year}/{day}/{Path(final).name}'
         # latest.txt is the sole intentionally updated pointer; review directories are never overwritten.
         command = f'test ! -e {q(final)} && mv {q(partial)} {q(final)} && printf "%s\\n" {q(relative)} > {q(root + "/latest.txt")}'
         ssh(host, command)
