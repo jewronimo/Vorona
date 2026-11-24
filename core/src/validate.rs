@@ -68,13 +68,10 @@ pub fn triangles(a: &Assembly, p: &Params) -> Validation {
                     !piece.partial
                         && piece.edges.iter().any(|e| {
                             !e.length.is_finite()
-                                || e.length
-                                    < (if piece.seed_depth.is_some() {
-                                        p.min_edge
-                                    } else {
-                                        p.min_triangle_edge
-                                    }) - 1e-7
-                                || (e.kind == "joint" && e.length > p.max_polygon_edge + 1e-7)
+                                || e.length < (1. - p.edge_shortfall) * p.min_triangle_edge - 1e-7
+                                || (e.kind == "joint"
+                                    && e.length
+                                        > p.max_polygon_edge.unwrap_or(f64::INFINITY) + 1e-7)
                         })
                 }
                 "R-VA-4" => {

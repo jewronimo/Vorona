@@ -137,7 +137,7 @@
         "min_triangle_edge": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "default": 1.5
+          "default": 2.0
         },
         "max_back_gap": {
           "type": "number",
@@ -157,15 +157,33 @@
           "default": "auto"
         },
         "max_polygon_edge": {
-          "type": "number",
+          "type": [
+            "number",
+            "null"
+          ],
           "exclusiveMinimum": 0,
-          "default": 3.0
+          "default": null
         },
-        "count_step": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 128,
-          "default": 2
+        "layout_headroom": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.1,
+          "description": "Nonnegative layout reserve fraction; nominal minimum is (1 + layout_headroom) * min_triangle_edge."
+        },
+        "edge_shortfall": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "Allowed finished whole-side shortfall fraction in [0, 0.5).",
+          "exclusiveMaximum": 0.5
+        },
+        "row_height": {
+          "type": "string",
+          "enum": [
+            "constant",
+            "proportional"
+          ],
+          "default": "constant"
         }
       },
       "required": [

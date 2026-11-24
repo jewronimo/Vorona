@@ -1170,3 +1170,196 @@ waived pass. Its incomplete deterministic starts retained edge/triangle-size,
 angle and back-gap deficits; mirror itself stayed below tolerance. Across ALL
 completed attempt reports in these eight runs, the largest measured normalized
 `stone_mirror` deficit corresponds to 2.68e-9 inch (gate 1e-6 inch).
+
+### Cone depth-zero warm-start diagnostic handoff — 2026-11-19 (UNMEASURED)
+
+- Added diagnostic-only `solve_from_depth_zero_reporting` and `a06_warm_start`.
+  At one explicit fixed pattern phase, independently rebuild depth0 and target
+  topologies, require identical chart/connectivity/unknown layouts, solve depth0
+  with the existing five starts, then transfer its best accepted unknown vector
+  into ONE 150-step target solve. This transfers tilt/slide variables, not points
+  or planes: target seed depths and exact incidence are recomputed normally.
+- Production entry points retain original starts/order/caps and do not capture
+  coordinate vectors. No limit, objective, phase policy or contract change.
+  Target success additionally requires normal C5 assembly/closure/solid gates.
+- Source/target attempts are streamed separately on stderr; final stdout contains
+  complete target geometry or failure best/report, assembly and accepted flag.
+  This fixed-phase research executable is NOT production selector acceptance.
+- Child ran container cargo fmt and git diff --check only; no compilation,
+  numerical tests, official checks, commit, merge or push. Parent owns testing.
+
+From host, build in a fresh isolated target:
+
+```sh
+docker exec -e CARGO_TARGET_DIR=/tmp/vstone-cone-warm-target -w /src/runs/worktrees/dihedral-core/core Vorona-dev cargo build --release --example a06_warm_start
+docker exec -w /src/runs/worktrees/dihedral-core/core Vorona-dev taskset -c 0 /tmp/vstone-cone-warm-target/release/examples/a06_warm_start /src/tests/fixtures/core_input_cylinder.json .25 0 1 /src/tests/fixtures/profiles/cone_9_to_6.json 0
+```
+
+Last argument is phase in inches (default0); compare identical phase and limits
+against cold diagnostics. Retain stdout/stderr and enforce the parent's existing
+60s deadline externally; timeout remains incomplete, never passed. Re-run exact
+command to compare geometry/assembly excluding elapsed timings for determinism.
+A phase sweep must rebuild source and target at each same phase, not reuse a
+source vector across phases. Official checks remain parent-owned.
+
+### Flare transition topology investigation — 2026-11-19 (BLOCKED, diagnostic only)
+
+- Current 14->16 row4/5 sites contain a cyclic isosceles trapezoid at90°
+  (53,54,67,68); reflection exchanges its two possible Delaunay diagonals.
+  Fixed current staggering cannot admit D2 symmetry under ANY diagonal tie rule.
+- Diagnostic alternate half-pitch rotation of all rows>=5 eliminates every
+  missing reflected edge (native Topology::build_a06, counts unchanged), but
+  is NOT a production fix: depth0 nominal start has parallel two-plane corners;
+  next deterministic start is infeasible including ~3.27593in whole-stone mirror
+  error. Remaining solve attempts explicitly stopped/incomplete. No depth.25
+  alternate solve. This is NOT proof that all permitted transition layouts fail.
+- Added only core/examples/a06_transition_topology.rs; preserved inherited
+  warm-start changes. Full discrete proof, raw topology, degree5/7 locations,
+  and next engineering steps: runs/logs/flare-6-15/transition-investigation.md.
+- Container diagnostic builds/runs and example rustfmt only. No official
+  checks/acceptance, commits/merges, gate/limit changes, or production changes.
+
+### Owner step2 flare global-layout follow-up (2026-11-19, focused only)
+
+In the existing dihedral-core worktree, r6→15 over axial30, depth0 and .25,
+randomness0/seed1 now pass native C4/C5 and all production R-VA/C7 gates.
+See `runs/logs/step2-flare/RESULTS.md` for exact timings, mirrors, side lengths,
+blank counts and numbered STEP paths. Symmetric regular-grid topology avoids
+three-row conformal-Delaunay flips; exact reflected intersection orbits avoid
+nominal-normal parity errors on steep flares. Gates unchanged. Focused tests:
+section9 5, global_layout3, rectified8 passed in Vorona-dev. Official dev-check
+and acceptance intentionally NOT run; no commit/merge or owner visual approval.
+
+### Step3 cone warm-start repair — focused diagnostic, 2026-11-19
+
+- `solve_from_depth_zero_reporting` now uses deterministic 25-stage seed-depth
+  continuation sharing the existing 150 target iteration cap. The .25 cone case
+  converges in 96 target iterations / 7.214 native seconds, all C4 limits and 27
+  row gates passing. No production selector/start, phase, limits or budgets changed.
+- Focused release regression passed in Vorona-dev. No official checks or merge.
+- Overall assembly still FAILS: C5 reports 12 rim Slivers +12 CollapsedOffset;
+  closure null-neighbor failure. No manufacturing/closure pass is claimed.
+  Evidence: `runs/logs/step3-cone/FIX-RESULTS.md` and `fix3-*` raw artifacts.
+
+### Owner review steps 1–4 — 2026-11-20 (uncertified)
+
+- Fixed stale A06 fixture depth 0.3 -> 0.25; Rust/default and §9.4 already correct.
+- Separate joint and saw-cut edge ranges plus actual enclosing-square piece width
+  added to CORE stats and diagnostic report; partial exemptions unchanged.
+- Removed rim-fit experiment, restoration patch:
+  `runs/logs/step3-cone/rim-fit-experiment.patch`. Reflection fixes preserved.
+- Added constant/default and proportional local-pitch row modes, schemas and tests.
+  Implementation interprets proportional as local forward arc pitch h(s) proportional
+  to radius (not equal conformal increments). Prior detailed specification was not
+  recoverable from indexed history; parent must verify this interpretation.
+- No official checks, acceptance, production solves, renders, commits, merges or
+  process stops by this child. SHELL mirror and rendered flare comparison pending.
+
+### Default flare false-infeasibility correction (2026-11-20; focused checks only)
+
+The global-layout circumferential pitch is not a necessary lower bound on a fitted
+stone's minimum enclosing square. Removed its premature blank rejection; actual
+C4/C5 blank=11.5 and all other gates are unchanged. Smooth flare 6→15 over 30,
+headroom=.10, n=8 passes native C4/C5 in constant and proportional modes:
+192 / 120 pieces, max blank footprint 8.186102248 / 9.882006895 inches, phase .375,
+closure passes, no solid/physical/symmetry violations, whole-edge deficit zero.
+Evidence: `runs/logs/flare-probe-{constant,proportional}.{json,log}`.
+Focused release `global_layout`: 11/11 pass (`runs/logs/flare-focused-tests.log`).
+No official checks, acceptance or commit. C6 remains held. A06 §9.3's historical
+claim of default flare infeasibility is disproved by these actual fitted layouts;
+nominal pitch alone must not be represented as a manufacturing failure.
+
+### Owner Task A strict outer-corner envelope — 2026-11-24 (BLOCKED, not accepted)
+
+- In `task/dihedral-core`, reproduced saved cylinder signed outer-corner extremes
+  -0.7662377537559593/+0.723921466100764 in y44..50. Saved selector phase .75,
+  zero-start iteration43 was feasible under old [-base-depth-.4,+.75] gates.
+- Implemented owner [-base-depth-.10,+.10] at every whole outer corner in native
+  C4 and final C5, exact positive-deficit rejection, per-incident-row reports.
+  No other limit relaxed. Seed depth is not signed corner/face distance.
+- Regression and focused lint/build evidence, all14 archive rejects, corrected
+  focused input outcomes and full definitions: `runs/logs/envelope-repair/REPORT.md`.
+- Corrected fixed-phase cylinder C4 is close-surface and passes this envelope,
+  but twelve rim/support solids collapse on inward offset; closure fails.
+  Production convergence/phase placement remains BLOCKED, not a completed repair.
+- No official dev-check/full acceptance/commit/push/merge. Parent owns checks;
+  Jerry must visually confirm the final geometry before any commit.
+
+### Task A clipped-solid continuation — 2026-11-24 (focused production evidence)
+
+C4 now measures signed inner-edge length after the original physical rim cuts,
+not just whole-face offsets. This repairs the previously collapsed cylinder rim
+solids without dropping material or relaxing closure/envelope/manufacturing gates.
+Archived cylinder constant relief.25 (552 pieces), flare proportional relief.25
+(128), vase proportional relief.25 (184) pass production R-VA1..8/C7 and independent
+strict whole-corner audit. Raw evidence, tests and limitations:
+`runs/logs/envelope-followup/REPORT.md`. Smooth cylinder phase0 remains a C4 failure;
+not all archived cases retested. No official checks/commit/publish or owner visual
+approval claimed.
+
+### Task A smooth-twin gate — 2026-11-24 (focused evidence only)
+
+Owner superseded the absolute/sag envelope: relief selects its existing phase,
+then one independent depth-zero twin solves at that exact chart/phase; no twin
+phase search. Whole-stone corners count in every incident seed row. Per-row
+outward margin = smooth_max + .10 - relief_max; inward margin = relief_min -
+smooth_min + depth + .20 inches. Negative margins fail. Smooth cases have no
+twin gate. Removed obsolete absolute corner barriers/assembly bounds; kept the
+clipped-solid minimum-inner-edge residual and all other limits. Twin solver or
+assembly failure fails the case. Full twin elapsed time and ranges/margins go to
+stderr diagnostics, inside the case deadline. No serialized contract change.
+
+Archived seven-case decision check passed the expected 6-pass / bad-cylinder-fail
+split before production changes. Exact per-row ranges/margins, phases, solve
+times and method: runs/logs/envelope-repair/TWIN-AUDIT.md and
+runs/logs/envelope-repair/twin-archived-rows.csv. Audit builds used an isolated
+container source snapshot with the obsolete absolute corner helper neutralized;
+no other geometry limits disabled. Official checks/acceptance, STEP visual gate,
+publishing and any commit remain parent/owner work; this child does not certify
+them. Focused serial results live in runs/logs/envelope-repair/twin-focused-v3/.
+
+Focused integration corrections (raw failed attempts preserved): removing the
+old two per-corner barriers also requires subtracting two entries per corner
+from fixed sparse supports. Added evaluate/sparsity length assertion to the
+existing constant-row/coloring regression; PASS. Relative gate violations use
+the existing corner_band_low/high identifiers so C6 rejects them (unknown
+identifiers are not automatically rejected). Preliminary v1/v2 focused runs
+are superseded; only twin-focused-v3 is final evidence. No limits relaxed.
+
+
+### Task A selected-phase twin focused repair — 2026-11-24
+
+C4 now includes minimum angles on the same level-cut partial polygon used by
+C5, combined into the existing clipped-solid residual without removing its
+signed inner-edge protection. A fixed three-iteration post-feasibility fit
+polish stays inside each original iteration cap and retains best feasible
+geometry; all regularization weights, starts, gate limits and twin policy are
+unchanged. Cylinder phase0 inward margin +0.0032113917132512992 inch; flare
+constant phase0 smooth twin assembly passes. Final focused serial CPU0 run:
+14/14 ok, each 90 seconds including twin, no timeouts; 49.913121 seconds total.
+Five focused residual/sparsity/twin-boundary tests passed. Full case table,
+raw outputs, per-row margins and experimental history:
+`runs/logs/envelope-repair/twin-focused-v5/REPORT.md`.
+No official checks, commit, merge, publish or owner visual certification.
+
+### Ignored cone continuation regression repair — 2026-11-24 (targeted only)
+
+- Reproduced acceptance ignored-test failure with informative attempt assertions.
+  The first relief stage fails only `clipped_min_inner_edge` (11 copies), maximum
+  normalized deficit 1.362566458100456e-6; all row symmetry gates pass. This is
+  the newly added clipped-piece soft residual settling outside its physical
+  gate, not a continuation topology mismatch or a symmetry defect.
+- Kept feasible clipped slack signed (bounded below by -1), including the
+  no-cut/outside sentinel, and added a .001 normalized optimization safety
+  margin. Previously clamping slack to zero removed the feasible-side gradient.
+  Physical deficit reporting, violation threshold, clipped angle/inner-edge
+  limits, all other gates, 25 stages and shared 150 target iterations unchanged.
+- Added a direct clipped-rectangle oracle: feasible cuts retain negative slack;
+  cuts producing short edges still have positive deficits. Failure assertions
+  now include source/target identity and full attempt diagnostics.
+- Targeted release cone regression PASS (9.37s); signed-slack unit PASS in
+  Vorona-dev pinned CPU0. Logs: runs/logs/cone-continuation-repair-before.log,
+  runs/logs/cone-continuation-repair-after.log,
+  runs/logs/cone-continuation-slack-unit.log. Existing dirty work preserved.
+  No official checks, acceptance rerun, commit, merge or publish; no C5 or
+  manufacturing certification inferred from these focused C4 tests.

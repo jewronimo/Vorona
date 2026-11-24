@@ -51,7 +51,9 @@ shape follows the surface and relief becomes a choice, not a side effect.
 | Setting | Default | Meaning |
 |---|---|---|
 | `min_triangle_edge` (new) | 4.0 in | every triangle side |
-| `min_edge` | 1.0 in | every polygon side |
+| `layout_headroom` | **0.10** | nominal layout reserve fraction (2026-11-20 decision below) |
+| `edge_shortfall` | **0.0** | finished whole-side shortfall fraction, [0, 0.5) |
+| `min_edge` | not used by `voronoi_triangles` | `min_triangle_edge` applies to every side |
 | `min_corner_angle_deg` | **30** (was 70) | plan-view corner angle, all pieces |
 | `max_corner_angle_deg` | 230 | reflex polygon corners |
 | `bevel_cap_deg` | 60 | taper of the grout face (waterjet limit) |
@@ -245,9 +247,11 @@ right on cylinder, cone and vase; large stones looked coarse, and random relief 
 ## 9.2 Stone size (replaces §3 `min_triangle_edge` default and §8.3 seed spacing)
 | Setting | Default | Meaning |
 |---|---|---|
-| `max_polygon_edge` (new) | 3.0 in | every polygon side **and** every triangle side (they are the same edges) |
-| `min_triangle_edge` | **1.5 in** (was 4.0) | every triangle side, including the base |
-| `min_edge` | 1.0 in | polygon sides (unchanged) |
+| `max_polygon_edge` | none | optional hard cap on polygon and triangle sides; always report actual largest side |
+| `min_triangle_edge` | **2.0 in** | minimum stone side: every polygon and triangle side |
+| `layout_headroom` | **0.10** | nominal layout reserve fraction (2026-11-20 decision below) |
+| `edge_shortfall` | **0.0** | finished whole-side shortfall fraction, [0, 0.5) |
+| `min_edge` | not used by `voronoi_triangles` | `min_triangle_edge` applies to every side |
 | `min_corner_angle_deg` | 30 | unchanged |
 | `blank_usable` | 11.5 in | unchanged |
 Triangles are isosceles in the symmetric layout: symmetric about their own vertical centreline, base
@@ -271,21 +275,65 @@ expose square `rim_whole` edges without dangling joint references. A05 remains
 unchanged.
 
 ## 9.3 Row layout (replaces §2.5 per-row counts and §8.4 C2 counts)
-1. **Constant count, constant row height.** Choose one seed count `n` per row for the whole surface and
-   one physical row height `h` (arc length along the profile). Stones narrow or widen with the radius;
-   rows stay level. Width per row `w(s) = 2π r(s) / n`.
-2. **Choosing n and h (deterministic):** among integer `n ≥ 3`, take those for which every row satisfies,
-   for the rectified triangles (base `w/2`, legs `½·√(w²/4 + h²)`):
-   base ≥ `min_triangle_edge`, base and legs ≤ `max_polygon_edge`, apex angle ≥ `min_corner_angle_deg`,
-   piece fits `blank_usable`. Choose `h = (√3/2)·w(median row)` clipped into the feasible range; pick the
-   feasible `n` whose median-row triangle is closest to equilateral; tie → smaller `n`. Report n, h and
-   the per-row base/leg range.
-3. **If no single n is feasible:** split the surface into the fewest stretches of constant count; at each
-   change the count changes by a step `g` (default 2, setting `count_step`) and the 5/7 pairs sit at `g`
-   equally spaced angles. Report every change (row, old → new count). Each stretch keeps constant row
-   height.
-4. Prototype reference: cylinder 9 in radius → n = 10; cone 9 → 6 in → n = 10, h = 4.5 in; vase 6–10 in →
-   n = 11, h = 4.5 in (no count change needed).
+**Owner decision 2026-11-19 (supersedes the earlier §9.2/§9.3 sizing policy):**
+1. One global integer count `n >= 3` and physical arc row height `h`. No count changes,
+   no fallback layout, and no layout setting. Stones grow where the surface widens.
+2. Choose the largest `n` with `pi*r(s)/n >= min_triangle_edge` everywhere, including
+   profile extrema between rows. Thus `n = floor(pi*r_min/min_triangle_edge)`.
+3. Start `h = sqrt(3)/2 * 2*pi*r_min/n`. Raise it only enough for wider rows to meet
+   `min_corner_angle_deg` (30 degrees). Report the original and raised height.
+   With `w=2*pi*r/n`, triangle base is `w/2`, leg is `sqrt(w*w/4+h*h)/2`;
+   apex angle is `2*atan(w/(2*h))`, base angles `(180-apex)/2`.
+4. If the selected n/h fails any gate, return infeasible, naming row and limit;
+   do not change count or relax limits. Optional `max_polygon_edge` is a hard cap.
+   All existing fitted-geometry gates remain, including blank_usable=11.5 inches,
+   corner angle 30 degrees, taper 60 degrees and the per-stone mirror gate.
+5. Default minimum 2 inches gives cylinder r9 n14, cone 9→6 n9, vase r6–10 n9,
+   flare 6→15 over 30 inches n9. Report global n/h, each row's base/leg/angles,
+   actual maximum side, and whether h was raised. These layout estimates do not
+   certify fitted C4/C5 geometry.
+
+
+### Owner layout headroom / finished-edge decision — 2026-11-20
+
+`layout_headroom` is a finite nonnegative **fraction**, default **0.10**.
+`edge_shortfall` is a finite **fraction in [0, 0.5)**, default **0.0**.
+This decision supersedes the earlier unreserved count formula and n14/n9 examples.
+The owner tunes these per job; they are not fixed geometry constants.
+The global count is `floor(pi*r_min / ((1+layout_headroom)*min_triangle_edge))`,
+at least 3, using extrema anywhere on the profile. Height selection is unchanged.
+Finished whole polygon and triangle edges must be at least
+`(1-edge_shortfall)*min_triangle_edge`; polygon `min_edge` barrier uses the same
+whole-stone minimum. Rim partial exemptions remain unchanged. Headroom changes
+only nominal sizing; shortfall changes only the finished-edge lower gate.
+Report measured shortest outer edge (including exempt partials) and maximum
+whole-edge deficit below the requested minimum in inches; keep those distinct.
+`stats.actual_shortest_side` is null without pieces; `stats.actual_edge_shortfall`
+is zero without whole edges. Diagnostics emit the same fields.
+At defaults: cylinder r9 n12, cone9→6 n8, vase6–10 n8, flare6→15 n8.
+Layout side ranges are nominal, not a fitted-geometry manufacturing pass.
+
+| Profile | n | h (in) | Nominal triangle sides (in) |
+|---|---:|---:|---:|
+| cylinder | 12 | 4.081048570 | 2.356194490–2.356194490 |
+| cone | 8 | 4.081048570 | 2.356194490–3.534291735 |
+| vase | 8 | 4.081048570 | 2.356194490–3.926990817 |
+| flare | 8 | 4.081048570 | 2.356194490–5.890486225 |
+
+Flare sizing is **infeasible at default blank_usable=11.5**: nominal row
+envelope exceeds the blank (11.510404663 at s=30.122032655). Its table row
+is sizing-only with the reporting blank cap disabled; production gates are unchanged.
+
+
+### Owner row-height option — 2026-11-20
+
+`row_height = "constant"` is the default and preserves the global-height policy.
+`"proportional"` retains the same single global count, but sets local nominal
+pitch to `sqrt(3)/2 * 2*pi*r(s)/n`. Rows advance deterministically by the local
+pitch, starting with two auxiliary narrowest-pitch rows below the design end.
+No count changes, fallback, or fitted-limit relaxations are introduced.
+Report row count and physical pitch range; nominal aspect ratios do not certify
+fitted stones. Phase shifts remain physical arc shifts, with local pitch recomputed.
 
 ## 9.4 Relief
 - Default `randomness = 0` (symmetric): row depth pattern 0, D/2, D (§8.2) on top of the auto base;
@@ -299,10 +347,9 @@ unchanged.
 - Owner decision (2026-11-19): randomness 0 is dihedral: zero sideways tilt,
   mirror-paired corner slides, and a maximum mirror error of 1e-6 inch for
   every whole stone. Include the mirror gate in reports and acceptance.
-- Constant-count stretches: solve one representative stone per row (2 tilts) plus its corner slides,
+- One global count: solve one representative stone per row (dihedral-constrained tilt) plus its corner slides,
   copy by exact rotation `2π/n`. Gate: equal spacing and equal size per row within 1e-6.
-- At a count change (9.3.3): solve one sector of angle `2π/g` and copy `g` times; gate the `g`-fold
-  repeat within 1e-6.
+- No count-change or sector-copy path; it remains only in git history.
 
 ## 9.6 Acceptance (replaces §5 matrix for this pattern)
 Required, all limits + closure + flatness + determinism + rotational and mirror gates:

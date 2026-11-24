@@ -44,10 +44,20 @@ pub struct Surface {
     tangents: Vec<[f64; 2]>,
     second: Vec<f64>,
     heights: [f64; 2],
+    legacy_endpoint_continuation: bool,
 }
 
 impl Surface {
-    /// Build from XY points in inches. Rejects axis contact, closure, crossings,
+    /// Select the historical A05 endpoint arithmetic for Voronoi production.
+    /// Distances remain inches; A06 retains analytic, symmetry-equivariant tangents.
+    pub fn for_pattern(mut self, pattern: crate::model::Pattern) -> Self {
+        self.legacy_endpoint_continuation = pattern == crate::model::Pattern::Voronoi;
+        self
+    }
+
+    /// Build from XY points in inches with historical A05 endpoint arithmetic.
+    /// A06 callers must explicitly select `for_pattern(VoronoiTriangles)`.
+    /// Rejects axis contact, closure, crossings,
     /// nonfinite coordinates and unrepresentable lengths. Consecutive duplicates
     /// within GEOM_EPS are removed. Endpoints orient the profile bottom to top.
     pub fn from_profile(points: &[[f64; 2]]) -> Result<Self, SurfaceError> {
@@ -112,6 +122,7 @@ impl Surface {
         let dr: Vec<_> = tangent.iter().map(|t| t[0]).collect();
         let second = differences(&arc, &dr);
         let mut result = Self {
+            legacy_endpoint_continuation: true,
             points: vec![p[0]],
             arcs: vec![0.],
             conformal: vec![0.],
@@ -411,12 +422,22 @@ impl crate::planes::SurfaceQueries for Surface {
         let n = self.normal(uv[0], s);
         let mut p = self.point(uv[0], s);
         if uv[1] != v {
-            let h = 1e-5;
-            let q = self.point(uv[0], (s + h).min(self.length()));
-            let r = self.point(uv[0], (s - h).max(0.));
-            let delta: [f64; 3] = std::array::from_fn(|i| q[i] - r[i]);
-            let length = delta.iter().map(|x| x * x).sum::<f64>().sqrt();
-            let tangent = delta.map(|x| x / length);
+            // Analytic endpoint tangent preserves the rigid rotation/reflection
+            // action for padding rows. Cartesian finite differences introduced
+            // angle-dependent cancellation and inconsistent through-seed planes.
+            let tangent = if self.legacy_endpoint_continuation {
+                // Preserve A05 operation order exactly: tiny roundoff differences
+                // can select a different nonlinear fit and collapse a rim offset.
+                let h = 1e-5;
+                let q = self.point(uv[0], (s + h).min(self.length()));
+                let r = self.point(uv[0], (s - h).max(0.));
+                let delta: [f64; 3] = std::array::from_fn(|i| q[i] - r[i]);
+                let length = delta.iter().map(|x| x * x).sum::<f64>().sqrt();
+                delta.map(|x| x / length)
+            } else {
+                let [dr, dy] = self.tangent(s);
+                [dr * uv[0].cos(), dy, dr * uv[0].sin()]
+            };
             p = std::array::from_fn(|i| p[i] + tangent[i] * (uv[1] - v) * self.r(s));
         }
         (p, n)
@@ -446,6 +467,65 @@ impl crate::rectified_planes::PeriodicSymmetry for Surface {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn default_endpoint_continuation_is_bit_identical_to_a05() {
+        assert_a05_endpoint_bits(Surface::from_profile(&[[9., 0.], [6., 60.]]).unwrap());
+    }
+
+    #[test]
+    fn voronoi_endpoint_continuation_is_bit_identical_to_a05() {
+        assert_a05_endpoint_bits(
+            Surface::from_profile(&[[9., 0.], [6., 60.]])
+                .unwrap()
+                .for_pattern(crate::model::Pattern::Voronoi),
+        );
+    }
+
+    fn assert_a05_endpoint_bits(surface: Surface) {
+        use crate::planes::SurfaceQueries;
+        for v in [-1., surface.v_of_s(surface.length()) + 1.] {
+            for angle in [0.1, 1.7, 4.2, 6.1] {
+                let end = v.clamp(0., surface.v_of_s(surface.length()));
+                let s = surface.s_of_v(end);
+                let p = surface.point(angle, s);
+                let q = surface.point(angle, (s + 1e-5).min(surface.length()));
+                let r = surface.point(angle, (s - 1e-5).max(0.));
+                let delta: [f64; 3] = std::array::from_fn(|i| q[i] - r[i]);
+                let length = delta.iter().map(|x| x * x).sum::<f64>().sqrt();
+                let tangent = delta.map(|x| x / length);
+                let expected: [f64; 3] =
+                    std::array::from_fn(|i| p[i] + tangent[i] * (v - end) * surface.r(s));
+                assert_eq!(
+                    surface.frame([angle, v]).0.map(f64::to_bits),
+                    expected.map(f64::to_bits)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn endpoint_continuation_commutes_with_rigid_symmetry() {
+        use crate::{planes::SurfaceQueries, rectified_planes::PeriodicSymmetry};
+        for profile in [vec![[9., 0.], [6., 60.]], vec![[6., 0.], [15., 30.]]] {
+            let surface = Surface::from_profile(&profile)
+                .unwrap()
+                .for_pattern(crate::model::Pattern::VoronoiTriangles);
+            for v in [-1., surface.v_of_s(surface.length()) + 1.] {
+                let (point, normal) = surface.frame([0., v]);
+                for k in 0..32 {
+                    let angle = k as f64 * std::f64::consts::TAU / 32.;
+                    let (actual, actual_normal) = surface.frame([angle, v]);
+                    let expected = surface.rotate_point(point, angle).unwrap();
+                    let expected_normal = surface.rotate_vector(normal, angle).unwrap();
+                    for i in 0..3 {
+                        assert!((actual[i] - expected[i]).abs() < 1e-12);
+                        assert!((actual_normal[i] - expected_normal[i]).abs() < 1e-12);
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn resampling_preserves_vertices_and_bounds_step() {

@@ -13,6 +13,8 @@ use serde::Serialize;
 use std::{collections::BTreeMap, f64::consts::TAU};
 
 /// Row measurements in inches; width is the predicted circumference/count.
+/// Triangle diagnostics are nominal isosceles forward-strip measurements, using
+/// midpoint radius for proportional pitch; not final fitted piece angles.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Row {
     pub s: f64,
@@ -22,6 +24,8 @@ pub struct Row {
     pub height: f64,
     pub triangle_base: f64,
     pub triangle_leg: f64,
+    pub triangle_apex_angle_deg: f64,
+    pub triangle_base_angle_deg: f64,
 }
 /// One rectified corner per original edge. Piece IDs: polygons first, then triangles.
 /// Only outermost padding edges may have three rather than four incident pieces.
@@ -55,21 +59,10 @@ pub fn build(surface: &Surface, p: &Params) -> Result<Rectified, String> {
     build_with_phase(surface, p, 0.)
 }
 
-/// Build A06 with a deterministic arc-length row phase in [0, one row height).
+/// Build A06 with a deterministic fractional row phase in [0,1).
 /// Surface queries, depths and topology are reconstructed, never translated off-surface.
 pub fn build_with_phase(surface: &Surface, p: &Params, phase: f64) -> Result<Rectified, String> {
-    let mut layout = row_layout::choose(surface, p)?;
-    let height = layout
-        .iter()
-        .map(|r| r.height)
-        .fold(f64::INFINITY, f64::min);
-    if !phase.is_finite() || phase < 0. || phase >= height {
-        return Err("A06 pattern phase must lie within one row height".into());
-    }
-    for row in &mut layout {
-        row.s += phase;
-        row.width = TAU * surface.r(row.s) / row.count as f64;
-    }
+    let layout = row_layout::choose_with_phase(surface, p, phase)?;
     let spacing = layout[layout.len() / 2].width;
     if p.pattern != Pattern::VoronoiTriangles
         || !spacing.is_finite()
@@ -102,14 +95,23 @@ pub fn build_with_phase(surface: &Surface, p: &Params, phase: f64) -> Result<Rec
             return Err("A06 seed site cap exceeded".into());
         }
         let width = TAU * surface.r(s) / count as f64;
+        // Triangle diagnostics describe the forward strip, not the lower row.
+        // A proportional strip spans changing radii; sample its midpoint.
+        let strip_width = if p.row_height == crate::model::RowHeight::Proportional {
+            TAU * surface.r(s + pitch / 2.) / count as f64
+        } else {
+            width
+        };
         rows.push(Row {
             s,
             count,
             predicted_width: width,
             exceeds_blank: width > p.blank_usable,
             height: pitch,
-            triangle_base: width / 2.0,
-            triangle_leg: 0.5 * (width.powi(2) / 4.0 + pitch.powi(2)).sqrt(),
+            triangle_apex_angle_deg: (2. * (strip_width / (2. * pitch)).atan()).to_degrees(),
+            triangle_base_angle_deg: 90. - (strip_width / (2. * pitch)).atan().to_degrees(),
+            triangle_base: strip_width / 2.0,
+            triangle_leg: 0.5 * (strip_width.powi(2) / 4.0 + pitch.powi(2)).sqrt(),
         });
         for col in 0..count {
             let angular = TAU / count as f64;
@@ -163,7 +165,20 @@ pub fn build_with_phase(surface: &Surface, p: &Params, phase: f64) -> Result<Rec
         }
         bases.push(base);
     }
-    let d = Topology::build_a06(tiles)?;
+    // The owner's global staggered grid has adjacent-row connectivity even
+    // where conformal compression would flip to three-row triangles. Build
+    // its combinatorics on the regular grid; retain the physical chart sites.
+    let d = if p.randomness == 0. {
+        let mut chart = tiles.clone();
+        for tile in &mut chart {
+            tile.v = tile.row as f64 * 3_f64.sqrt() / 2. * TAU / rows[tile.row].count as f64;
+        }
+        let mut topology = Topology::build_a06(chart)?;
+        topology.tiles = tiles;
+        topology
+    } else {
+        Topology::build_a06(tiles)?
+    };
     rectify(d, spacing, rows, bases)
 }
 
@@ -261,4 +276,35 @@ pub fn rectify(
         triangles,
         corners,
     })
+}
+
+impl Rectified {
+    /// Incident seed IDs for a polygon or triangle, in stable index order.
+    pub fn piece_seeds(&self, piece: usize) -> Vec<usize> {
+        if piece < self.polygons.len() {
+            return vec![piece];
+        }
+        self.triangles[piece - self.polygons.len()]
+            .iter()
+            .flat_map(|&k| self.corners[k].seeds)
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    }
+    /// Resolved inward base in inches for a polygon or triangle. Triangle base
+    /// is the arithmetic mean of its three incident polygon seed bases.
+    pub fn piece_relief_base(&self, piece: usize) -> f64 {
+        let seeds = self.piece_seeds(piece);
+        seeds.iter().map(|&i| self.relief_bases[i]).sum::<f64>() / seeds.len() as f64
+    }
+}
+
+/// Owner Task A relief-only twin margins in inches: inward, outward.
+/// Inputs are finite [minimum, maximum] whole-corner ranges for one incident
+/// row at the same chart/phase; depth is nonnegative inches. Negative fails.
+pub fn smooth_twin_margins(relief: [f64; 2], smooth: [f64; 2], depth: f64) -> [f64; 2] {
+    [
+        relief[0] - smooth[0] + depth + 0.20,
+        smooth[1] + 0.10 - relief[1],
+    ]
 }

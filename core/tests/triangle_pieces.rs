@@ -83,12 +83,17 @@ fn smooth_cylinder_square_joints_have_no_invalid_input_solids() {
     ))
     .unwrap();
     input.params.pattern = Pattern::VoronoiTriangles;
-    input.params.min_triangle_edge = 1.5;
-    input.params.max_polygon_edge = 3.;
-    input.params.count_step = 2;
+    // Keep this successful square-joint regression clear of the rim sliver
+    // limit under the global headroom-based layout. The former 1.5in input
+    // now selects 17 columns and correctly reports rejected 1.5in rim partials;
+    // 1.6in selects 16 columns without changing any manufacturing limit.
+    input.params.min_triangle_edge = 1.6;
+    input.params.max_polygon_edge = Some(3.);
     input.params.depth = 0.;
     input.params.randomness = 0.;
-    let surface = Surface::from_profile(&input.surface.profile).unwrap();
+    let surface = Surface::from_profile(&input.surface.profile)
+        .unwrap()
+        .for_pattern(vstone_core::model::Pattern::VoronoiTriangles);
     let a = rectified_assembly::solve_assembly(&surface, &input.params).unwrap();
     assert_eq!(a.rim_heights, surface.y_range());
     assert!(a.pieces.iter().any(|p| p.partial));
@@ -201,22 +206,24 @@ fn row_phase_rebuilds_on_surface_and_preserves_seeded_determinism() {
         "../../tests/fixtures/core_input_a06_cylinder.json"
     ))
     .unwrap();
-    let surface = Surface::from_profile(&input.surface.profile).unwrap();
+    let surface = Surface::from_profile(&input.surface.profile)
+        .unwrap()
+        .for_pattern(vstone_core::model::Pattern::VoronoiTriangles);
     let zero = rectified::build(&surface, &input.params).unwrap();
-    let phase = zero.rows[0].height / 3.;
+    let phase = 1. / 3.;
     let shifted = rectified::build_with_phase(&surface, &input.params, phase).unwrap();
     assert_eq!(
         shifted,
         rectified::build_with_phase(&surface, &input.params, phase).unwrap()
     );
-    assert!(zero
-        .rows
-        .iter()
-        .zip(&shifted.rows)
-        .all(|(a, b)| (b.s - a.s - phase).abs() < 1e-12));
+    assert!(zero.rows.iter().zip(&shifted.rows).all(|(a, b)| (b.s
+        - a.s
+        - phase * zero.rows[0].height)
+        .abs()
+        < 1e-12));
     assert_eq!(surface.y_range(), [0., 60.]);
     assert!(rectified::build_with_phase(&surface, &input.params, -phase).is_err());
-    assert!(rectified::build_with_phase(&surface, &input.params, zero.rows[0].height).is_err());
+    assert!(rectified::build_with_phase(&surface, &input.params, 1.).is_err());
 }
 
 #[test]

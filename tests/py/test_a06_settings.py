@@ -6,7 +6,7 @@ from vstone.config import ConfigError, load_config
 
 
 @pytest.mark.parametrize("pattern,depth,angle", [
-    (None, 0.3, 30.0), ("voronoi_triangles", 0.3, 30.0),
+    (None, 0.25, 30.0), ("voronoi_triangles", 0.25, 30.0),
     ("voronoi", 1.5, 70.0),
 ])
 def test_pattern_defaults(tmp_path, pattern, depth, angle):
@@ -20,9 +20,11 @@ def test_pattern_defaults(tmp_path, pattern, depth, angle):
     assert params["pattern"] == (pattern or "voronoi_triangles")
     assert params["depth"] == pytest.approx(depth)
     assert params["min_corner_angle_deg"] == angle
-    assert params["min_triangle_edge"] == (4.0 if pattern == "voronoi" else 1.5)
-    assert params["max_polygon_edge"] == 3.0
-    assert params["count_step"] == 2
+    assert params["min_triangle_edge"] == (4.0 if pattern == "voronoi" else 2.0)
+    assert params["max_polygon_edge"] is None
+    assert params["layout_headroom"] == 0.10
+    assert params["edge_shortfall"] == 0.0
+    assert "count_step" not in params
     assert params["max_back_gap"] == 0.5
     assert params["relief_base"] == "auto"
 
@@ -52,6 +54,10 @@ def test_smooth_and_explicit_transport(tmp_path, base):
     ("relief_base", "inf"), ("relief_base", "true"),
     ("max_polygon_edge", "0"), ("max_polygon_edge", "nan"),
     ("max_polygon_edge", "true"),
+    ("layout_headroom", "-0.01"), ("layout_headroom", "inf"),
+    ("layout_headroom", "true"), ("edge_shortfall", "-0.01"),
+    ("edge_shortfall", "0.5"), ("edge_shortfall", "nan"),
+    ("edge_shortfall", "false"),
 ])
 def test_bad_setting_names_key(tmp_path, key, value):
     config_path = tmp_path / "config.toml"
@@ -68,7 +74,7 @@ def test_depth_default_tracks_size_only_when_omitted(tmp_path, pattern, depth):
     config_path = tmp_path / "config.toml"
     text = (
         '[input]\nprofile = "unused.step"\n'
-        f'[pattern]\npattern = "{pattern}"\ncount_step = 4\n'
+        f'[pattern]\npattern = "{pattern}"\n'
         '[limits]\nmax_polygon_edge = 5.0\n'
     )
     if depth is not None:
@@ -79,12 +85,12 @@ def test_depth_default_tracks_size_only_when_omitted(tmp_path, pattern, depth):
             load_config(config_path)
         return
     config = load_config(config_path)
-    expected = depth if depth is not None else (1.5 if pattern == "voronoi" else 0.5)
+    expected = depth if depth is not None else (1.5 if pattern == "voronoi" else 0.25)
     assert config.depth == pytest.approx(expected)
-    assert config.count_step == 4
+    assert config.max_polygon_edge == 5.0
 
 
-@pytest.mark.parametrize("value", ["0", "-2", "2.5", "true"])
+@pytest.mark.parametrize("value", ["0", "2", "-2", "2.5", "true"])
 def test_count_step_requires_positive_integer(tmp_path, value):
     config_path = tmp_path / "config.toml"
     config_path.write_text(
