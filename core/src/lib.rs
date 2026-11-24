@@ -48,6 +48,14 @@ fn run(input: &CoreInput, only: bool) -> CoreOutput {
     }
     for (key, valid) in [
         (
+            "layout_headroom",
+            p.layout_headroom.is_finite() && p.layout_headroom >= 0.,
+        ),
+        (
+            "edge_shortfall",
+            p.edge_shortfall.is_finite() && p.edge_shortfall >= 0. && p.edge_shortfall < 0.5,
+        ),
+        (
             "min_triangle_edge",
             p.min_triangle_edge.is_finite() && p.min_triangle_edge > 0.0,
         ),
@@ -106,6 +114,7 @@ fn run(input: &CoreInput, only: bool) -> CoreOutput {
     match surface::Surface::from_profile(&input.surface.profile) {
         Err(e) => out.message = format!("invalid surface: {e}"),
         Ok(surface) => {
+            let surface = surface.for_pattern(p.pattern);
             if p.pattern == Pattern::VoronoiTriangles {
                 match rectified::row_layout::choose(&surface, p) {
                     Ok(rows) => {
@@ -162,6 +171,8 @@ fn run(input: &CoreInput, only: bool) -> CoreOutput {
                         out.pieces = a.pieces;
                         out.stats.piece_count = out.pieces.len() as u32;
                         for piece in &out.pieces {
+                            out.stats.largest_piece_width =
+                                out.stats.largest_piece_width.max(piece.bounding_square);
                             *out.stats
                                 .by_sides
                                 .entry(if piece.partial {
@@ -173,6 +184,34 @@ fn run(input: &CoreInput, only: bool) -> CoreOutput {
                             out.stats.max_face_depth =
                                 out.stats.max_face_depth.max(piece.face_depth);
                             for edge in &piece.edges {
+                                let (lo, hi) = if edge.kind == "joint" {
+                                    (
+                                        &mut out.stats.shortest_joint_edge,
+                                        &mut out.stats.largest_joint_edge,
+                                    )
+                                } else {
+                                    (
+                                        &mut out.stats.shortest_saw_cut_edge,
+                                        &mut out.stats.largest_saw_cut_edge,
+                                    )
+                                };
+                                if edge.kind == "joint" || edge.kind == "rim_level" {
+                                    *lo = Some(lo.map_or(edge.length, |v| v.min(edge.length)));
+                                    *hi = Some(hi.map_or(edge.length, |v| v.max(edge.length)));
+                                }
+                                out.stats.actual_shortest_side = Some(
+                                    out.stats
+                                        .actual_shortest_side
+                                        .map_or(edge.length, |v| v.min(edge.length)),
+                                );
+                                if !piece.partial && p.pattern == Pattern::VoronoiTriangles {
+                                    out.stats.actual_edge_shortfall = out
+                                        .stats
+                                        .actual_edge_shortfall
+                                        .max((p.min_triangle_edge - edge.length).max(0.));
+                                }
+                                out.stats.actual_largest_side =
+                                    out.stats.actual_largest_side.max(edge.length);
                                 out.stats.max_bevel_deg =
                                     out.stats.max_bevel_deg.max(edge.bevel_deg);
                             }
@@ -205,6 +244,19 @@ fn run(input: &CoreInput, only: bool) -> CoreOutput {
                             out.stats.max_face_depth =
                                 out.stats.max_face_depth.max(piece.face_depth);
                             for edge in &piece.edges {
+                                out.stats.actual_shortest_side = Some(
+                                    out.stats
+                                        .actual_shortest_side
+                                        .map_or(edge.length, |v| v.min(edge.length)),
+                                );
+                                if !piece.partial && p.pattern == Pattern::VoronoiTriangles {
+                                    out.stats.actual_edge_shortfall = out
+                                        .stats
+                                        .actual_edge_shortfall
+                                        .max((p.min_triangle_edge - edge.length).max(0.));
+                                }
+                                out.stats.actual_largest_side =
+                                    out.stats.actual_largest_side.max(edge.length);
                                 out.stats.max_bevel_deg =
                                     out.stats.max_bevel_deg.max(edge.bevel_deg);
                             }
@@ -257,6 +309,14 @@ fn placeholder(input_sha256: String) -> CoreOutput {
             checks: vec![],
         },
         stats: Stats {
+            shortest_joint_edge: None,
+            largest_joint_edge: None,
+            shortest_saw_cut_edge: None,
+            largest_saw_cut_edge: None,
+            largest_piece_width: 0.,
+            actual_largest_side: 0.,
+            actual_shortest_side: None,
+            actual_edge_shortfall: 0.,
             piece_count: 0,
             by_sides: Default::default(),
             blanks_used: 0,

@@ -47,6 +47,39 @@ fn roundtrip_and_schema() {
     }
 }
 #[test]
+fn measured_stats_fixture_and_legacy_defaults() {
+    let output: CoreOutput = serde_json::from_str(OUTPUT).unwrap();
+    let stats = &output.stats;
+    near(stats.shortest_joint_edge.unwrap(), 6.0);
+    near(stats.largest_joint_edge.unwrap(), 6.0);
+    near(stats.shortest_saw_cut_edge.unwrap(), 4.658742811845373);
+    near(stats.largest_saw_cut_edge.unwrap(), 4.658742811845373);
+    near(stats.largest_piece_width, 6.0);
+
+    // Older output documents omit these additive measurements and remain readable.
+    let mut legacy: serde_json::Value = serde_json::from_str(OUTPUT).unwrap();
+    for key in [
+        "shortest_joint_edge",
+        "largest_joint_edge",
+        "shortest_saw_cut_edge",
+        "largest_saw_cut_edge",
+        "largest_piece_width",
+    ] {
+        legacy["stats"].as_object_mut().unwrap().remove(key);
+    }
+    let schema =
+        serde_json::from_str(include_str!("../../docs/schema/core_output.schema.json")).unwrap();
+    assert!(jsonschema::draft202012::new(&schema)
+        .unwrap()
+        .is_valid(&legacy));
+    let legacy: CoreOutput = serde_json::from_value(legacy).unwrap();
+    assert_eq!(legacy.stats.shortest_joint_edge, None);
+    assert_eq!(legacy.stats.largest_joint_edge, None);
+    assert_eq!(legacy.stats.shortest_saw_cut_edge, None);
+    assert_eq!(legacy.stats.largest_saw_cut_edge, None);
+    assert_eq!(legacy.stats.largest_piece_width, 0.0);
+}
+#[test]
 fn deterministic_and_errors() {
     let first = generate_json(INPUT);
     let second = generate_json(INPUT);
@@ -335,7 +368,7 @@ fn a06_pattern_defaults_and_native_dispatch() {
     assert_eq!(default.params.pattern, Pattern::VoronoiTriangles);
     assert!((default.params.depth - 0.25).abs() < 1e-15);
     assert_eq!(default.params.min_corner_angle_deg, 30.0);
-    assert_eq!(default.params.min_triangle_edge, 1.5);
+    assert_eq!(default.params.min_triangle_edge, 2.0);
     assert_eq!(default.params.max_back_gap, 0.5);
     assert_eq!(default.params.relief_base, ReliefBase::default());
     let output = vstone_core::feasibility_only(&default);
@@ -428,4 +461,53 @@ fn a06_ranges_schema_and_rust_agree() {
             }
         }
     }
+}
+
+#[test]
+fn headroom_and_shortfall_contract() {
+    let mut value: serde_json::Value = serde_json::from_str(INPUT).unwrap();
+    value["params"]
+        .as_object_mut()
+        .unwrap()
+        .remove("layout_headroom");
+    value["params"]
+        .as_object_mut()
+        .unwrap()
+        .remove("edge_shortfall");
+    let input: CoreInput = serde_json::from_value(value.clone()).unwrap();
+    assert_eq!(input.params.layout_headroom, 0.1);
+    assert_eq!(input.params.edge_shortfall, 0.);
+    for (key, bad) in [
+        ("layout_headroom", -0.01),
+        ("edge_shortfall", -0.01),
+        ("edge_shortfall", 0.5),
+    ] {
+        value["params"][key] = bad.into();
+        let out: CoreOutput = serde_json::from_str(&generate_json(&value.to_string())).unwrap();
+        assert!(out.message.contains(key), "{}", out.message);
+        value["params"].as_object_mut().unwrap().remove(key);
+    }
+}
+
+#[test]
+fn row_height_preserves_legacy_serialization_and_explicit_policy() {
+    let mut raw: serde_json::Value = serde_json::from_str(INPUT).unwrap();
+    let omitted: CoreInput = serde_json::from_value(raw.clone()).unwrap();
+    assert_eq!(omitted.params.row_height, RowHeight::Constant);
+    assert_eq!(serde_json::to_string(&omitted).unwrap(), INPUT);
+
+    raw["params"]["row_height"] = serde_json::json!("constant");
+    let constant: CoreInput = serde_json::from_value(raw.clone()).unwrap();
+    assert_eq!(constant, omitted);
+    assert_eq!(serde_json::to_string(&constant).unwrap(), INPUT);
+
+    raw["params"]["row_height"] = serde_json::json!("proportional");
+    let proportional: CoreInput = serde_json::from_value(raw).unwrap();
+    assert_eq!(proportional.params.row_height, RowHeight::Proportional);
+    let encoded = serde_json::to_string(&proportional).unwrap();
+    assert!(encoded.contains("\"row_height\":\"proportional\""));
+    assert_eq!(
+        serde_json::from_str::<CoreInput>(&encoded).unwrap(),
+        proportional
+    );
 }

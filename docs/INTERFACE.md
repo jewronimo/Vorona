@@ -189,13 +189,58 @@ C5 check failures, including expected outside/whole-rim removals.
 Selected level cut heights (deterministic inward search within one tile pitch,
 capped at one quarter of the profile height) are stated in the run message.
 
-## A06 section 9 settings (owner-approved 2026-11-17)
+## A06 section 9 settings (owner-approved 2026-11-19)
 
-`voronoi_triangles` adds `max_polygon_edge` (finite >0, default 3 inches)
-and `count_step` (integer 1..128, default 2). `min_triangle_edge` defaults to
-1.5 inches; omitted `randomness` is 0; omitted `depth` resolves in Rust to
-0.1 times the resolved `max_polygon_edge`. Explicit depth 0 remains smooth.
-A05 `voronoi` retains depth 1.5 and its existing geometry/default angle rules.
-A06 derives constant physical row height/count, with count-step fallback; it
-no longer derives spacing from 2.3 times the triangle minimum. Shell must pass
-explicit user values unchanged and preserve omission of depth until resolved.
+`min_triangle_edge` defaults to 2 inches and applies to every polygon and triangle
+side. `max_polygon_edge` is optional (omitted or JSON null = no maximum); a finite
+positive value is a hard cap. Actual largest side is always reported. `count_step`
+is removed and rejected as an unknown setting. No alternative-layout settings.
+One global n=floor(pi*r_min/min_triangle_edge), n>=3, and one h starting at
+sqrt(3)/2*2*pi*r_min/n; raise h only for the corner-angle minimum. An infeasible
+row/limit is an error, never a count change. C4/C5 retain all actual geometry gates.
+Omitted randomness is 0 and depth is 0.25 inches, independent of size; depth 0
+is smooth. A05 retains depth 1.5 and its existing geometry/default-angle rules.
+
+`stats.actual_largest_side` reports the measured largest outer piece edge in inches
+(including rim edges), or zero if no pieces exist. Layout estimates are not actual sides.
+
+### Owner layout headroom / finished-edge decision — 2026-11-20
+
+`layout_headroom` is a finite nonnegative **fraction**, default **0.10**.
+`edge_shortfall` is a finite **fraction in [0, 0.5)**, default **0.0**.
+This decision supersedes the earlier unreserved count formula and n14/n9 examples.
+The owner tunes these per job; they are not fixed geometry constants.
+The global count is `floor(pi*r_min / ((1+layout_headroom)*min_triangle_edge))`,
+at least 3, using extrema anywhere on the profile. Height selection is unchanged.
+Finished whole polygon and triangle edges must be at least
+`(1-edge_shortfall)*min_triangle_edge`; polygon `min_edge` barrier uses the same
+whole-stone minimum. Rim partial exemptions remain unchanged. Headroom changes
+only nominal sizing; shortfall changes only the finished-edge lower gate.
+Report measured shortest outer edge (including exempt partials) and maximum
+whole-edge deficit below the requested minimum in inches; keep those distinct.
+`stats.actual_shortest_side` is null without pieces; `stats.actual_edge_shortfall`
+is zero without whole edges. Diagnostics emit the same fields.
+At defaults: cylinder r9 n12, cone9→6 n8, vase6–10 n8, flare6→15 n8.
+Layout side ranges are nominal, not a fitted-geometry manufacturing pass.
+
+| Profile | n | h (in) | Nominal triangle sides (in) |
+|---|---:|---:|---:|
+| cylinder | 12 | 4.081048570 | 2.356194490–2.356194490 |
+| cone | 8 | 4.081048570 | 2.356194490–3.534291735 |
+| vase | 8 | 4.081048570 | 2.356194490–3.926990817 |
+| flare | 8 | 4.081048570 | 2.356194490–5.890486225 |
+
+Flare sizing is **infeasible at default blank_usable=11.5**: nominal row
+envelope exceeds the blank (11.510404663 at s=30.122032655). Its table row
+is sizing-only with the reporting blank cap disabled; production gates are unchanged.
+
+### A06 owner reporting and row-height additions (2026-11-20)
+
+`params.row_height`: `constant` (default) or `proportional`; proportional uses
+local nominal arc pitch `sqrt(3)/2 * 2*pi*r(s)/n`, with unchanged global count.
+Stats separate `shortest_joint_edge` / `largest_joint_edge` from
+`shortest_saw_cut_edge` / `largest_saw_cut_edge` (`rim_level` only).
+Ranges are null without matching edges. Joint remnants on partials are measured,
+not falsely certified as whole-edge gates; existing partial exemptions stay.
+`largest_piece_width` is the largest actual outer+inner enclosing-square width
+in inches, compared with `params.blank_usable`, and zero without pieces.

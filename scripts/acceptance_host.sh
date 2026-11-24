@@ -11,6 +11,17 @@ mkdir -p "$logdir"
     git rev-parse HEAD
     git status --short
 } > "$logdir/host-provenance.log"
+# Record exact source bytes, including untracked non-ignored files, before any gate.
+python3 - "$logdir/source-sha256.txt" <<'PYHASH'
+import hashlib, os, subprocess, sys
+paths = subprocess.check_output(["git", "ls-files", "-co", "--exclude-standard", "-z", "--", "core/", "py/", "scripts/", "docs/schema/"]).split(b"\0")
+with open(sys.argv[1], "w", encoding="utf-8") as out:
+    for raw in sorted(set(filter(None, paths))):
+        path = os.fsdecode(raw)
+        with open(path, "rb") as source:
+            digest = hashlib.file_digest(source, "sha256").hexdigest()
+        out.write(f"{digest}  {path}\n")
+PYHASH
 printf 'logs=%s\n' "$logdir"
 worker=
 heartbeat=

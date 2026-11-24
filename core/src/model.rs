@@ -22,6 +22,19 @@ pub enum Pattern {
     VoronoiTriangles,
     Voronoi,
 }
+/// Arc-row height policy; proportional scales local pitch with local radius.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RowHeight {
+    #[default]
+    Constant,
+    Proportional,
+}
+impl RowHeight {
+    fn is_constant(&self) -> bool {
+        *self == Self::Constant
+    }
+}
 /// Relief base in inches, transported unchanged until geometry resolves auto.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(untagged)]
@@ -46,10 +59,17 @@ impl Default for ReliefBase {
 pub struct Params {
     pub pattern: Pattern,
     pub min_triangle_edge: f64,
-    #[serde(default = "default_max_polygon_edge")]
-    pub max_polygon_edge: f64,
-    #[serde(default = "default_count_step")]
-    pub count_step: usize,
+    #[serde(default, skip_serializing_if = "RowHeight::is_constant")]
+    pub row_height: RowHeight,
+    #[serde(
+        default = "default_layout_headroom",
+        deserialize_with = "read_layout_headroom"
+    )]
+    pub layout_headroom: f64,
+    #[serde(default, deserialize_with = "read_edge_shortfall")]
+    pub edge_shortfall: f64,
+    #[serde(default)]
+    pub max_polygon_edge: Option<f64>,
     pub relief_base: ReliefBase,
     pub max_back_gap: f64,
     pub thickness: f64,
@@ -82,10 +102,17 @@ struct ParamsWire {
         deserialize_with = "read_min_triangle_edge"
     )]
     pub min_triangle_edge: f64,
-    #[serde(default = "default_max_polygon_edge")]
-    pub max_polygon_edge: f64,
-    #[serde(default = "default_count_step")]
-    pub count_step: usize,
+    #[serde(default)]
+    pub row_height: RowHeight,
+    #[serde(
+        default = "default_layout_headroom",
+        deserialize_with = "read_layout_headroom"
+    )]
+    pub layout_headroom: f64,
+    #[serde(default, deserialize_with = "read_edge_shortfall")]
+    pub edge_shortfall: f64,
+    #[serde(default)]
+    pub max_polygon_edge: Option<f64>,
     #[serde(default, deserialize_with = "read_relief_base")]
     pub relief_base: ReliefBase,
     #[serde(
@@ -122,8 +149,10 @@ impl From<ParamsWire> for Params {
         Self {
             pattern: w.pattern,
             min_triangle_edge: w.min_triangle_edge,
+            row_height: w.row_height,
+            layout_headroom: w.layout_headroom,
+            edge_shortfall: w.edge_shortfall,
             max_polygon_edge: w.max_polygon_edge,
-            count_step: w.count_step,
             relief_base: w.relief_base,
             max_back_gap: w.max_back_gap,
             thickness: w.thickness,
@@ -258,6 +287,28 @@ pub struct Check {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Stats {
+    /// Measured JOINT outer-edge range in inches; partial joint remnants included.
+    #[serde(default)]
+    pub shortest_joint_edge: Option<f64>,
+    #[serde(default)]
+    pub largest_joint_edge: Option<f64>,
+    /// Measured horizontal saw-cut outer-edge range in inches (exempt).
+    #[serde(default)]
+    pub shortest_saw_cut_edge: Option<f64>,
+    #[serde(default)]
+    pub largest_saw_cut_edge: Option<f64>,
+    /// Largest fitted outer+inner enclosing-square width in inches.
+    #[serde(default)]
+    pub largest_piece_width: f64,
+    /// Actual largest outer piece side in inches, including rim edges.
+    #[serde(default)]
+    pub actual_largest_side: f64,
+    /// Shortest measured outer edge in inches (including partials); absent without pieces.
+    #[serde(default)]
+    pub actual_shortest_side: Option<f64>,
+    /// Maximum whole-piece side deficit below min_triangle_edge, in inches.
+    #[serde(default)]
+    pub actual_edge_shortfall: f64,
     pub piece_count: u32,
     pub by_sides: BTreeMap<String, u32>,
     pub blanks_used: u32,
@@ -271,8 +322,11 @@ pub struct Provenance {
     pub input_sha256: String,
 }
 
+fn default_layout_headroom() -> f64 {
+    0.10
+}
 fn default_min_triangle_edge() -> f64 {
-    1.5
+    2.0
 }
 fn default_max_back_gap() -> f64 {
     0.5
@@ -309,9 +363,9 @@ fn read_max_back_gap<'de, D: serde::Deserializer<'de>>(d: D) -> Result<f64, D::E
     f64::deserialize(d).map_err(|e| serde::de::Error::custom(format!("max_back_gap: {e}")))
 }
 
-fn default_max_polygon_edge() -> f64 {
-    3.0
+fn read_layout_headroom<'de, D: serde::Deserializer<'de>>(d: D) -> Result<f64, D::Error> {
+    f64::deserialize(d).map_err(|e| serde::de::Error::custom(format!("layout_headroom: {e}")))
 }
-fn default_count_step() -> usize {
-    2
+fn read_edge_shortfall<'de, D: serde::Deserializer<'de>>(d: D) -> Result<f64, D::Error> {
+    f64::deserialize(d).map_err(|e| serde::de::Error::custom(format!("edge_shortfall: {e}")))
 }

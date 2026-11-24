@@ -1,5 +1,8 @@
-//! A06 §9 inch-valued constant-height/count stretches, independent of A05.
-use crate::{model::Params, surface::Surface};
+//! Owner's A06 §9 single global count/height layout; lengths are inches.
+use crate::{
+    model::{Params, RowHeight},
+    surface::Surface,
+};
 use serde::Serialize;
 use std::f64::consts::{PI, TAU};
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -9,173 +12,152 @@ pub struct PlannedRow {
     pub height: f64,
     pub width: f64,
 }
-fn range(radii: &[f64], n: usize, p: &Params) -> Option<(f64, f64, f64)> {
-    let mut lo = 0_f64;
-    let mut hi = f64::INFINITY;
-    for &r in radii {
-        let w = TAU * r / n as f64;
-        let b = w / 2.;
-        if b < p.min_triangle_edge || b > p.max_polygon_edge || w > p.blank_usable {
-            return None;
-        }
-        lo = lo.max(
-            (4. * p.min_triangle_edge.powi(2) - w * w / 4.)
-                .max(0.)
-                .sqrt(),
-        );
-        hi = hi.min(
-            (4. * p.max_polygon_edge.powi(2) - w * w / 4.)
-                .max(0.)
-                .sqrt(),
-        );
-        hi = hi.min(w / (2. * (p.min_corner_angle_deg * PI / 360.).tan()));
-        // The leg/base corner also respects the same angle minimum.
-        lo = lo.max(w / 2. * (p.min_corner_angle_deg.to_radians()).tan());
-        hi = hi.min(p.blank_usable);
-    }
-    if lo > hi || hi <= 0. {
-        return None;
-    }
-    let w = TAU * radii[radii.len() / 2] / n as f64;
-    let h = (3_f64.sqrt() / 2. * w).clamp(lo.max(1e-6), hi);
-    let score = (0.5 * (w * w / 4. + h * h).sqrt() - w / 2.).abs();
-    Some((h, score, w))
-}
-/// Choose the fewest feasible constant-count stretches at exact profile knots.
-/// The fallback considers only count differences ±g and g-fold-compatible counts.
-/// Rejects infeasible layouts and resource caps; never changes physical limits.
+/// Choose the largest count allowed by the narrowest radius, then one height.
+/// Checks all piecewise-linear profile extrema, including between generated rows.
+/// Returns the offending profile position and limit; never changes count to fit.
 pub fn choose(surface: &Surface, p: &Params) -> Result<Vec<PlannedRow>, String> {
-    if !p.max_polygon_edge.is_finite()
-        || p.max_polygon_edge <= 0.
-        || p.min_triangle_edge <= 0.
+    choose_with_phase(surface, p, 0.)
+}
+/// Place rows at integer plus fractional phase in the integrated pitch coordinate.
+/// Phase must be finite in [0,1); lengths and actual forward gaps are inches.
+pub fn choose_with_phase(
+    surface: &Surface,
+    p: &Params,
+    phase: f64,
+) -> Result<Vec<PlannedRow>, String> {
+    if !phase.is_finite() || !(0.0..1.0).contains(&phase) {
+        return Err("A06 pattern phase must be a fraction in [0,1)".into());
+    }
+    if !p.layout_headroom.is_finite()
+        || p.layout_headroom < 0.
+        || !p.edge_shortfall.is_finite()
+        || p.edge_shortfall < 0.
+        || p.edge_shortfall >= 0.5
         || !p.min_triangle_edge.is_finite()
-        || p.count_step == 0
-        || p.count_step > 128
+        || p.min_triangle_edge <= 0.
+        || p.max_polygon_edge
+            .is_some_and(|v| !v.is_finite() || v <= 0.)
+        || !p.blank_usable.is_finite()
         || p.blank_usable <= 0.
         || !p.min_corner_angle_deg.is_finite()
         || !(0.0..90.0).contains(&p.min_corner_angle_deg)
     {
         return Err("invalid A06 row-layout settings".into());
     }
-    // Every triangle edge must satisfy both bounds. No count/stretch can
-    // rescue an empty interval: reject it before the quadratic fallback DP.
-    if p.min_triangle_edge > p.max_polygon_edge {
-        return Err(
-            "no feasible A06 n/h layout: min_triangle_edge exceeds max_polygon_edge".into(),
-        );
-    }
     let knots = surface.layout_knots();
-    let radii: Vec<_> = knots.iter().map(|&s| surface.r(s)).collect();
-    let max_r = radii.iter().copied().fold(0., f64::max);
-    let min_r = radii.iter().copied().fold(f64::INFINITY, f64::min);
-    let low = ((PI * max_r / p.max_polygon_edge).ceil() as usize).max(3);
-    let high = (PI * min_r / p.min_triangle_edge).floor() as usize;
-    let mut best: Option<(usize, f64, f64)> = None;
-    for n in low..=high.min(4096) {
-        if let Some((h, score, _)) = range(&radii, n, p) {
-            if best.is_none_or(|(bn, _, bs)| {
-                score < bs - 1e-12 || ((score - bs).abs() <= 1e-12 && n < bn)
-            }) {
-                best = Some((n, h, score));
-            }
-        }
+    let min_r = knots
+        .iter()
+        .map(|&s| surface.r(s))
+        .fold(f64::INFINITY, f64::min);
+    let n = (PI * min_r / ((1. + p.layout_headroom) * p.min_triangle_edge)).floor() as usize;
+    if n < 3 {
+        let s = *knots
+            .iter()
+            .min_by(|&&a, &&b| surface.r(a).total_cmp(&surface.r(b)))
+            .unwrap();
+        return Err(format!(
+            "infeasible A06 row s={s}: min_triangle_edge requires n < 3"
+        ));
     }
-    let stretches = if let Some((n, h, _)) = best {
-        vec![(0., surface.length(), n, h)]
-    } else {
-        // Dynamic programming over all profile-knot intervals: minimize number of
-        // stretches, then stable count/path order. Every interval is checked against
-        // every exact linear-profile extremum, not a radius sample approximation.
-        let cap = (PI * max_r / p.min_triangle_edge).floor().min(4096.) as usize;
-        if knots.len() > 2500 {
-            return Err("A06 fallback knot cap exceeded".into());
+    if n > 4096 {
+        return Err("A06 global count resource cap exceeded (4096)".into());
+    }
+    let mut h = 3_f64.sqrt() / 2. * TAU * min_r / n as f64;
+    // The base angles shrink at wider rows. Raise h only to their hard minimum.
+    for &s in &knots {
+        if p.row_height == RowHeight::Proportional {
+            break;
         }
-        type Path = Vec<(usize, usize, f64)>;
-        let mut dp = vec![std::collections::BTreeMap::<usize, Path>::new(); knots.len()];
-        for end in 1..knots.len() {
-            for n in (3..=cap).filter(|n| n % p.count_step == 0) {
-                let mut path: Option<Path> = None;
-                for start in 0..end {
-                    if let Some((h, _, _)) = range(&radii[start..=end], n, p) {
-                        let candidate = if start == 0 {
-                            Some(vec![(end, n, h)])
-                        } else {
-                            dp[start]
-                                .iter()
-                                .filter(|(old, _)| old.abs_diff(n) == p.count_step)
-                                .map(|(_, v)| {
-                                    let mut q = v.clone();
-                                    q.push((end, n, h));
-                                    q
-                                })
-                                .min_by_key(Vec::len)
-                        };
-                        if let Some(c) = candidate {
-                            if path.as_ref().is_none_or(|v| c.len() < v.len()) {
-                                path = Some(c);
-                            }
-                        }
-                    }
-                }
-                if let Some(path) = path {
-                    dp[end].insert(n, path);
-                }
-            }
+        let w = TAU * surface.r(s) / n as f64;
+        h = h.max(w / 2. * p.min_corner_angle_deg.to_radians().tan());
+    }
+    let height_at = |s: f64| {
+        if p.row_height == RowHeight::Proportional {
+            h * surface.r(s) / min_r
+        } else {
+            h
         }
-        let path = dp
-            .last()
-            .unwrap()
-            .values()
-            .min_by_key(|v| v.len())
-            .ok_or("no feasible A06 n/h layout, including count-step fallback")?;
-        let mut start = 0.;
-        path.iter()
-            .map(|&(end, n, h)| {
-                let end = knots[end];
-                let item = (start, end, n, h);
-                start = end;
-                item
-            })
-            .collect()
     };
+    for &s in &knots {
+        let h = height_at(s);
+        let w = TAU * surface.r(s) / n as f64;
+        let base = w / 2.;
+        let leg = 0.5 * (w * w / 4. + h * h).sqrt();
+        let angle = (2. * (w / (2. * h)).atan()).to_degrees();
+        let fail = |limit: &str, value: f64, bound: f64| {
+            format!("infeasible A06 row s={s} n={n} h={h}: {limit} value={value} limit={bound}")
+        };
+        if base.min(leg) < p.min_triangle_edge - 1e-9 {
+            return Err(fail(
+                "min_triangle_edge",
+                base.min(leg),
+                p.min_triangle_edge,
+            ));
+        }
+        if let Some(maximum) = p.max_polygon_edge {
+            if base.max(leg) > maximum + 1e-9 {
+                return Err(fail("max_polygon_edge", base.max(leg), maximum));
+            }
+        }
+        if angle.min((180. - angle) / 2.) < p.min_corner_angle_deg - 1e-9 {
+            return Err(fail(
+                "min_corner_angle_deg",
+                angle.min((180. - angle) / 2.),
+                p.min_corner_angle_deg,
+            ));
+        }
+        // Circumferential pitch is not a lower bound on a fitted stone's
+        // enclosing square (rectification and square rotation both reduce it).
+        // Leave blank_usable to the unchanged actual C4/C5 footprint gates.
+    }
     let mut rows = Vec::new();
-    let mut at = 0.;
-    let mut stretch = 0;
-    let first = stretches[0];
-    for k in [-2., -1.] {
-        let s = k * first.3;
-        rows.push(PlannedRow {
-            s,
-            count: first.2,
-            height: first.3,
-            width: TAU * surface.r(s) / first.2 as f64,
-        });
-    }
-    while at <= surface.length() {
-        while stretch + 1 < stretches.len() && at > stretches[stretch].1 {
-            stretch += 1;
+    let max_r = knots.iter().map(|&s| surface.r(s)).fold(0., f64::max);
+    // Use exactly the legacy arithmetic on cylinders in either mode.
+    if p.row_height == RowHeight::Constant || max_r == min_r {
+        let mut at = -2. * h;
+        while at <= surface.length() + 2. * h {
+            let position = at + phase * h;
+            rows.push(PlannedRow {
+                s: position,
+                count: n,
+                height: h,
+                width: TAU * surface.r(position) / n as f64,
+            });
+            at += h;
+            if rows.len() > 10000 {
+                return Err("A06 row cap exceeded".into());
+            }
         }
-        let (_, _, n, h) = stretches[stretch];
-        rows.push(PlannedRow {
-            s: at,
-            count: n,
-            height: h,
-            width: TAU * surface.r(at) / n as f64,
-        });
-        at += h;
-        if rows.len() > 10000 {
-            return Err("A06 row cap exceeded".into());
+    } else {
+        // t = min_r/h * integral ds/r. Surface's analytic piecewise-linear
+        // conformal map and inverse avoid Euler stepping, including knot crossings.
+        let scale = h / min_r;
+        let end_v = surface.v_of_s(surface.length());
+        let end_t = end_v / scale;
+        let inverse = |t: f64| {
+            if t < 0. {
+                t * h * surface.r(0.) / min_r
+            } else if t > end_t {
+                surface.length() + (t - end_t) * h * surface.r(surface.length()) / min_r
+            } else {
+                surface.s_of_v(t * scale)
+            }
+        };
+        let mut k = -2;
+        while k as f64 + phase <= end_t + 2. {
+            let t = k as f64 + phase;
+            let at = inverse(t);
+            rows.push(PlannedRow {
+                s: at,
+                count: n,
+                height: inverse(t + 1.) - at,
+                width: TAU * surface.r(at) / n as f64,
+            });
+            k += 1;
+            if rows.len() > 10000 {
+                return Err("A06 row cap exceeded".into());
+            }
         }
-    }
-    let (_, _, n, h) = *stretches.last().unwrap();
-    for _ in 0..2 {
-        rows.push(PlannedRow {
-            s: at,
-            count: n,
-            height: h,
-            width: TAU * surface.r(at) / n as f64,
-        });
-        at += h;
     }
     Ok(rows)
 }

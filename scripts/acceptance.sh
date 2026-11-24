@@ -6,6 +6,8 @@ set -uo pipefail
 stamp="$ACCEPTANCE_STAMP"
 logdir="$ACCEPTANCE_LOGDIR"
 mkdir -p "$logdir"
+# The host resolves Git worktree metadata and captures source before gates.
+test -s "$logdir/source-sha256.txt" || { echo "Missing host source manifest" >&2; exit 1; }
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-/tmp/vstone-acceptance-$stamp}"
 status=0
 exec > >(tee "$logdir/acceptance.log") 2>&1
@@ -22,13 +24,13 @@ else
     status=1
 fi
 # A06 C4 gates are additional to, never replacements for, A05 regressions.
-(cd core && cargo build --release --example a06_report) > "$logdir/a06-build.log" 2>&1
+(cd core && cargo build --release --example a06_report --bin vstone-core) > "$logdir/a06-build.log" 2>&1
 if [ "$?" -eq 0 ]; then
     taskset -c "$cpu" bash scripts/a06_matrix.sh "$CARGO_TARGET_DIR/release/examples/a06_report" "$logdir" || status=1
 else
     status=1
 fi
-printf 'A06 C5 combined acceptance requires all six native closure/limit gates and owner STEP review; C6 held\n'
+printf 'A06 C5 combined acceptance requires all fourteen native/production closure/limit/determinism/numbered-STEP gates and owner STEP review; C6 held\n'
 printf 'acceptance exit=%s (0 allows only the explicitly accepted known timeout; inspect summary)\n' "$status"
 printf 'logs=%s\n' "$logdir"
 exit "$status"
