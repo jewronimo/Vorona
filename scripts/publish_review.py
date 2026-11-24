@@ -104,6 +104,7 @@ def publish(path, host, root, rsync):
         lines += ['', 'a06-summary.log: native case outcomes; a06-numbered-summary.jsonl: numbered case results.', 'matrix96-summary.txt: A05 matrix summary; host-provenance.log: source state.', 'SHA256SUMS verifies the files in this folder.']
         # Reconstruct the old publisher's exact manifest to recognize existing flat-layout
         # publications. This is a byte-for-byte comparison, not a filename-only match.
+        # Earlier flat publications used 'unknown' when blank counts were absent.
         legacy_readme = ('\n'.join(lines) + '\n').replace('blanks not recorded;', 'blanks unknown;')
         legacy_hashes = {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
                          for p in stage.rglob('*') if p.is_file()}
@@ -144,11 +145,30 @@ def publish(path, host, root, rsync):
                 f'if grep -F -x -q -- {q("Acceptance: " + path.name)} "$f"; then '
                 'printf "%s\\n" "${f%/README.txt}"; fi; done')
         found = ssh(host, scan).stdout.splitlines()
+        # The manually published final acceptance predates the publisher README format.
+        # Recognize it only when its recorded run and all review artifacts match bytes.
+        manual_scan = (f'for f in {q(parent)}/*/details/acceptance.log; do '
+                       f'[ -f "$f" ] || continue; '
+                       f'if grep -F -q -- {q(path.name)} "$f"; then '
+                       'printf "%s\\n" "${f%/details/acceptance.log}"; fi; done')
+        for existing in ssh(host, manual_scan).stdout.splitlines():
+            expected = {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+                        for p in path.glob('*-numbered.step')}
+            for filename in ('a06-numbered-summary.jsonl', 'a06-summary.log',
+                             'host-provenance.log', 'source-sha256.txt', 'acceptance.log'):
+                expected['details/' + filename] = hashlib.sha256((path / filename).read_bytes()).hexdigest()
+            result = ssh(host, f'cd {q(existing)} && sha256sum -c SHA256SUMS', check=False)
+            remote = ssh(host, f'cat {q(existing + "/SHA256SUMS")}', check=False)
+            entries = dict((line.split('  ', 1)[1], line.split('  ', 1)[0])
+                           for line in remote.stdout.splitlines() if '  ' in line)
+            if result.returncode == 0 and expected and all(entries.get(k) == v for k, v in expected.items()):
+                print(f'already published at {existing}', flush=True)
+                return
         partial_candidates = []
         different = False
         for existing in found:
             is_partial = existing.endswith('.partial')
-            manifest_path = existing + ('/details/SHA256SUMS' if is_partial else '/details/SHA256SUMS')
+            manifest_path = existing + '/details/SHA256SUMS'
             result = ssh(host, f'if [ -f {q(manifest_path)} ]; then cat {q(manifest_path)}; '
                                f'elif [ -f {q(existing + "/SHA256SUMS")} ]; then cat {q(existing + "/SHA256SUMS")}; fi')
             same = result.stdout in (manifest, changed_manifest, legacy_manifest)
