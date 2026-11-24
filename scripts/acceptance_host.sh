@@ -8,6 +8,7 @@ logdir="$PWD/runs/logs/acceptance-$stamp"
 mkdir -p "$logdir"
 {
     printf 'host_worktree=%s\n' "$PWD"
+    printf 'host_branch=%s\n' "$(git branch --show-current)"
     git rev-parse HEAD
     git status --short
 } > "$logdir/host-provenance.log"
@@ -25,6 +26,13 @@ cleanup() {
     docker exec -w "$workdir" "$container" python scripts/acceptance_control.py stop "$stamp" || result=1
     if [ -n "$worker" ]; then
         wait "$worker" 2>/dev/null || true
+    fi
+    printf '%s\n' "$result" > "$logdir/host-exit-status"
+    if "$PWD/scripts/publish_review.sh" "$logdir" > "$logdir/publish-review.log" 2>&1; then
+        cat "$logdir/publish-review.log"
+    else
+        cat "$logdir/publish-review.log" >&2
+        printf 'Review publish failed; acceptance exit status remains %s. See %s/publish-review.log\n' "$result" "$logdir" >&2
     fi
     exit "$result"
 }
