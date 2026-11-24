@@ -6,17 +6,8 @@ set -uo pipefail
 stamp="$ACCEPTANCE_STAMP"
 logdir="$ACCEPTANCE_LOGDIR"
 mkdir -p "$logdir"
-# Record exact source bytes, including untracked non-ignored files, before any gate.
-python3 - "$logdir/source-sha256.txt" <<'PYHASH'
-import hashlib, os, subprocess, sys
-paths = subprocess.check_output(["git", "ls-files", "-co", "--exclude-standard", "-z", "--", "core/", "py/", "scripts/", "docs/schema/"]).split(b"\0")
-with open(sys.argv[1], "w", encoding="utf-8") as out:
-    for raw in sorted(set(filter(None, paths))):
-        path = os.fsdecode(raw)
-        with open(path, "rb") as source:
-            digest = hashlib.file_digest(source, "sha256").hexdigest()
-        out.write(f"{digest}  {path}\n")
-PYHASH
+# The host resolves Git worktree metadata and captures source before gates.
+test -s "$logdir/source-sha256.txt" || { echo "Missing host source manifest" >&2; exit 1; }
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-/tmp/vstone-acceptance-$stamp}"
 status=0
 exec > >(tee "$logdir/acceptance.log") 2>&1
