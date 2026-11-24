@@ -705,3 +705,35 @@ is claimed. Parent owns execution, measured diagnosis and any ensuing solver fix
   mirrored both schemas and interface; updated superseded A06 test assertions.
 - No builds/tests/checks run by child: container fmt only; parent owns serial
   verification. Existing dirty C4 work is excluded from this focused commit.
+
+### Owner single-global-layout step 1 — 2026-11-19
+
+- Implements owner decision in A06 §9.2/§9.3: minimum stone side 2 inches,
+  optional maximum (JSON null/omission), largest narrowest-radius count and one
+  equilateral-at-narrowest height raised only for corner angles. Removes
+  count_step and count-change/sector-copy paths, not the existing dihedral solver.
+- Polygon and triangle whole-side minima now both use min_triangle_edge. Optional
+  cap is disabled rather than evaluated as an infinite residual. Actual largest
+  outer side is reported in CoreOutput stats and diagnostic report.
+- Shell config/transport, both schemas, INTERFACE, example and fixtures updated
+  together under the owner's explicit contract/settings authorization.
+- Preserved inherited dirty C4 warm-start diagnostic source and task notes;
+  adapted their numeric max assignments to Option and removed deleted setting.
+- Step 1 only: no official dev-check, acceptance, geometry certification, STEP,
+  commit or merge. Focused test evidence lives in runs/logs/step1-layout-final.log
+  and runs/logs/step1-settings-tests.log. Parent owns subsequent steps.
+
+### Owner fractional layout headroom — 2026-11-20 (focused only)
+
+Implemented layout_headroom=.10 and edge_shortfall=0 as owner-tunable fractions,
+mirrored Rust contract/schemas/fixtures and A06/interface/orchestrator docs.
+Count uses the reserved minimum; fitted C4/C5/C6 whole-edge gates use the allowed
+shortfall. Reporting distinguishes shortest outer edge (partials included) from
+maximum whole-edge deficit in inches. Python/example edits are parent-owned.
+Focused container evidence: runs/logs/headroom-20261120/focused-final.log (4 layout
+tests, per-row reports) and contract-final.log (8 contract +8 rectified, example
+check). Long legacy deterministic_and_errors generation was stopped and excluded
+from bounded focused rerun; initial serialization failures were repaired.
+No official checks, geometry certification, commit or merge. Flare nominal n8
+is default-blank infeasible (11.510404663>11.5 at s30.122032655); sizing table is
+report-only, not a relaxed production gate. Parent owns sweeps and official gates.

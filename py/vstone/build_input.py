@@ -43,8 +43,9 @@ def build_core_input(config: RunConfig, profile_path=None) -> dict[str, Any]:
         "params": {
             "pattern": config.pattern,
             "min_triangle_edge": config.min_triangle_edge,
+            "layout_headroom": config.layout_headroom,
+            "edge_shortfall": config.edge_shortfall,
             "max_polygon_edge": config.max_polygon_edge,
-            "count_step": config.count_step,
             "relief_base": config.relief_base,
             "max_back_gap": config.max_back_gap,
             "thickness": config.thickness,
@@ -68,6 +69,9 @@ def build_core_input(config: RunConfig, profile_path=None) -> dict[str, Any]:
             "nest_gap": config.blanks_nest_gap,
         },
     }
+
+    if config.row_height != "constant":
+        core_input["params"]["row_height"] = config.row_height
 
     # Validate against schema (basic validation)
     _validate_core_input(core_input)

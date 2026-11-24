@@ -18,10 +18,21 @@ fn v(p: V) -> Vector3<f64> {
 fn id(i: usize) -> String {
     format!("A{i:06}")
 }
+/// Per incident seed row: signed distances in inches at every whole outer corner.
+/// A triangle touching two rows is included in both; no face-interior bound is claimed.
+#[derive(Debug, Serialize)]
+pub struct EnvelopeRow {
+    pub row: usize,
+    pub seed_depth: [f64; 3],
+    pub signed_outer_corners: [f64; 3],
+    pub failed_corners: usize,
+}
 #[derive(Debug, Serialize)]
 pub struct Assembly {
     pub pieces: Vec<Piece>,
+    pub outer_envelope_rows: Vec<EnvelopeRow>,
     pub rim_heights: [f64; 2],
+    /// Dimensionless row phase fraction in [0,1).
     pub pattern_phase: f64,
     /// Measured C4 row gates from this selected phase's final geometry.
     pub symmetry_rows: Vec<crate::rectified_planes::RowGate>,
@@ -73,8 +84,6 @@ pub fn solve_assembly_reporting(
     p: &Params,
     mut report: impl FnMut(f64, &crate::rectified_planes::Attempt),
 ) -> Result<Assembly, String> {
-    let rows = crate::rectified::row_layout::choose(surface, p)?;
-    let height = rows.iter().map(|r| r.height).fold(f64::INFINITY, f64::min);
     let mut best = None;
     let mut failures = Vec::new();
     // A bounded sixty-step zero-start pilot ranks phases by actual
@@ -89,7 +98,7 @@ pub fn solve_assembly_reporting(
             continue;
         }
         for step in 0..16 {
-            let phase = height * step as f64 / 16.;
+            let phase = step as f64 / 16.;
             let t = crate::rectified::build_with_phase(surface, p, phase)?;
             let pilot = crate::rectified_planes::solve_budget_reporting(
                 surface,
@@ -122,7 +131,7 @@ pub fn solve_assembly_reporting(
                             best = Some(candidate);
                         }
                         if placement == (0, 0.) {
-                            return Ok(best.unwrap());
+                            return apply_smooth_twin(surface, p, best.unwrap());
                         }
                     }
                 }
@@ -159,7 +168,74 @@ pub fn solve_assembly_reporting(
             break;
         }
     }
-    best.ok_or_else(|| format!("A06 phase search failed: {}", failures.join("; ")))
+    apply_smooth_twin(
+        surface,
+        p,
+        best.ok_or_else(|| format!("A06 phase search failed: {}", failures.join("; ")))?,
+    )
+}
+
+/// Validate relief against one independently solved smooth twin at the selected
+/// phase; distances/margins are inches. Never searches another twin phase.
+fn apply_smooth_twin(
+    surface: &Surface,
+    p: &Params,
+    mut relief: Assembly,
+) -> Result<Assembly, String> {
+    if p.depth == 0. {
+        return Ok(relief);
+    }
+    let mut smooth_params = p.clone();
+    smooth_params.depth = 0.;
+    let started = std::time::Instant::now();
+    let t = crate::rectified::build_with_phase(surface, &smooth_params, relief.pattern_phase)?;
+    let g = match crate::rectified_planes::solve(surface, &t, &smooth_params) {
+        Ok(g) => g,
+        Err(e) => {
+            eprintln!(
+                "{}",
+                serde_json::json!({"smooth_twin_phase":relief.pattern_phase,"smooth_twin_seconds":started.elapsed().as_secs_f64(),"failure":e})
+            );
+            relief
+                .solid_errors
+                .push("smooth twin failed at selected relief phase".into());
+            return Ok(relief);
+        }
+    };
+    let smooth = assemble(&t, &g, surface, &smooth_params)?;
+    let seconds = started.elapsed().as_secs_f64();
+    if placement_score(&smooth).0 != 0 {
+        relief
+            .solid_errors
+            .push("smooth twin assembly failed at selected relief phase".into());
+    }
+    let mut rows = Vec::new();
+    for r in &relief.outer_envelope_rows {
+        let Some(s) = smooth.outer_envelope_rows.iter().find(|s| s.row == r.row) else {
+            relief
+                .solid_errors
+                .push(format!("smooth twin missing incident row {}", r.row));
+            continue;
+        };
+        let [inward, outward] = crate::rectified::smooth_twin_margins(
+            [r.signed_outer_corners[0], r.signed_outer_corners[2]],
+            [s.signed_outer_corners[0], s.signed_outer_corners[2]],
+            p.depth,
+        );
+        for (name, margin) in [("corner_band_high", outward), ("corner_band_low", inward)] {
+            if margin < 0. {
+                relief
+                    .violations
+                    .push((format!("row{}", r.row), name.into(), -margin));
+            }
+        }
+        rows.push(serde_json::json!({"row":r.row,"relief":r.signed_outer_corners,"smooth":s.signed_outer_corners,"outward_margin":outward,"inward_margin":inward}));
+    }
+    eprintln!(
+        "{}",
+        serde_json::json!({"smooth_twin_phase":relief.pattern_phase,"smooth_twin_seconds":seconds,"rows":rows,"smooth_violations":smooth.violations,"smooth_solid_errors":smooth.solid_errors,"smooth_closure":smooth.closure})
+    );
+    Ok(relief)
 }
 
 fn placement_score(a: &Assembly) -> (usize, f64) {
@@ -231,9 +307,10 @@ fn assemble_at(
     // Same 1.5in owner partial-square minimum at every candidate cut.
     let minimum = 1.5;
     let mut output = Vec::new();
+    let mut envelope_rows = BTreeMap::<usize, (Vec<f64>, Vec<f64>, usize)>::new();
     let mut errors = Vec::new();
     let mut violations = Vec::new();
-    let base = t.relief_bases.iter().copied().fold(f64::INFINITY, f64::min);
+
     let mut retained = Vec::new();
     for (i, (mut outer, mut sides)) in raw.into_iter().enumerate() {
         let mut partial = false;
@@ -322,6 +399,24 @@ fn assemble_at(
                 continue;
             }
         };
+        if !partial {
+            let seeds = t.piece_seeds(i);
+            let rows: std::collections::BTreeSet<_> =
+                seeds.iter().map(|&k| t.delaunay.tiles[k].row).collect();
+            for row in rows {
+                let values = envelope_rows.entry(row).or_default();
+                values.0.extend(
+                    seeds
+                        .iter()
+                        .filter(|&&k| t.delaunay.tiles[k].row == row)
+                        .map(|&k| t.delaunay.tiles[k].depth),
+                );
+                for &point in &solid.outer {
+                    let signed = surface.signed_distance(point);
+                    values.1.push(signed);
+                }
+            }
+        }
         let m = solid.outer.len();
         let normal = v(faces[i].n);
         let axis = if normal[1].abs() < 0.9 {
@@ -339,7 +434,13 @@ fn assemble_at(
             .collect();
         let square = crate::planes::bounding_square(&q);
         let mut check = |name: &str, deficit: f64| {
-            if deficit > 1e-7 {
+            if deficit
+                > if name.starts_with("corner_band_") {
+                    0.
+                } else {
+                    1e-7
+                }
+            {
                 violations.push((id(i), name.into(), deficit));
             }
         };
@@ -365,24 +466,20 @@ fn assemble_at(
                     } else {
                         "min_triangle_edge"
                     },
-                    if i < n {
-                        p.min_edge - length
-                    } else {
-                        p.min_triangle_edge - length
-                    },
+                    (1. - p.edge_shortfall) * p.min_triangle_edge - length,
                 );
             }
-            if !partial && maximum_edge_applies(solid.sides[k].kind) {
-                check("max_polygon_edge", length - p.max_polygon_edge);
+            if !partial && maximum_edge_applies(solid.sides[k].kind) && p.max_polygon_edge.is_some()
+            {
+                check(
+                    "max_polygon_edge",
+                    length - p.max_polygon_edge.unwrap_or(f64::INFINITY),
+                );
             }
             check("min_corner_angle_deg", p.min_corner_angle_deg - angle);
             if !partial {
                 check("max_corner_angle_deg", angle - p.max_corner_angle_deg);
                 check("bevel_cap_deg", solid.bevel_deg[k] - p.bevel_cap_deg);
-
-                let distance = surface.signed_distance(point);
-                check("corner_band_low", -(base + p.depth + 0.4) - distance);
-                check("corner_band_high", distance - 0.75);
             }
             check(
                 "flatness",
@@ -487,7 +584,17 @@ fn assemble_at(
         }
         per_piece.push((piece.id.clone(), stats(local)));
     }
+    let outer_envelope_rows = envelope_rows
+        .into_iter()
+        .map(|(row, (depths, distances, failed_corners))| EnvelopeRow {
+            row,
+            seed_depth: stats(depths),
+            signed_outer_corners: stats(distances),
+            failed_corners,
+        })
+        .collect();
     Ok(Assembly {
+        outer_envelope_rows,
         pieces: output,
         rim_heights: heights,
         pattern_phase: 0.,

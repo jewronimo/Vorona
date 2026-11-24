@@ -15,8 +15,8 @@ fn input() -> CoreInput {
     // minimum. A06 §9 uses 30°; requiring every triangle angle >= 70° is
     // infeasible. Override only this pattern-specific setting, not A05 defaults.
     i.params.min_corner_angle_deg = 30.0;
-    i.params.min_triangle_edge = 1.5;
-    i.params.max_polygon_edge = 3.0;
+    i.params.min_triangle_edge = 2.0;
+    i.params.max_polygon_edge = None;
     i.params.depth = 1.0;
     i.params.relief_base = serde_json::from_str("\"auto\"").unwrap();
     i
@@ -60,7 +60,9 @@ fn counts_four_valence_and_determinism_across_profiles() {
             .unwrap(),
         )
         .unwrap();
-        let s = Surface::from_profile(&i.surface.profile).unwrap();
+        let s = Surface::from_profile(&i.surface.profile)
+            .unwrap()
+            .for_pattern(vstone_core::model::Pattern::VoronoiTriangles);
         for r in [0.0, 0.5, 1.0] {
             for seed in 1..=3 {
                 i.params.randomness = r;
@@ -104,9 +106,15 @@ fn counts_four_valence_and_determinism_across_profiles() {
                     assert!(row.height > 0.0);
                     if (0.0..=s.length()).contains(&row.s) {
                         assert!(row.triangle_base >= i.params.min_triangle_edge - 1e-9);
-                        assert!(row.triangle_base <= i.params.max_polygon_edge + 1e-9);
+                        assert!(
+                            row.triangle_base
+                                <= i.params.max_polygon_edge.unwrap_or(f64::INFINITY) + 1e-9
+                        );
                         assert!(row.triangle_leg >= i.params.min_triangle_edge - 1e-9);
-                        assert!(row.triangle_leg <= i.params.max_polygon_edge + 1e-9);
+                        assert!(
+                            row.triangle_leg
+                                <= i.params.max_polygon_edge.unwrap_or(f64::INFINITY) + 1e-9
+                        );
                     }
                 }
                 for (k, site) in t.delaunay.tiles.iter().enumerate() {
@@ -125,7 +133,9 @@ fn counts_four_valence_and_determinism_across_profiles() {
 #[test]
 fn cylinder_curvature_base_smooth_numeric_and_legacy_knobs() {
     let mut i = input();
-    let s = Surface::from_profile(&i.surface.profile).unwrap();
+    let s = Surface::from_profile(&i.surface.profile)
+        .unwrap()
+        .for_pattern(vstone_core::model::Pattern::VoronoiTriangles);
     assert_eq!(s.principal_curvatures(30.0), [1.0 / 9.0, 0.0]);
     i.params.randomness = 0.0;
     i.params.depth = 0.0;
@@ -163,7 +173,9 @@ fn periodic_cut_does_not_change_rectified_incidence() {
         .unwrap();
         for r in [0.0, 0.5, 1.0] {
             i.params.randomness = r;
-            let s = Surface::from_profile(&i.surface.profile).unwrap();
+            let s = Surface::from_profile(&i.surface.profile)
+                .unwrap()
+                .for_pattern(vstone_core::model::Pattern::VoronoiTriangles);
             let a = rectified::build(&s, &i.params).unwrap();
             for shift in [0.731, 0.123456789, std::f64::consts::PI, 5.9] {
                 let mut tiles = a.delaunay.tiles.clone();
@@ -195,16 +207,22 @@ fn signed_curvature_and_row_symmetry() {
             [10.0 * a.cos(), 10.0 * a.sin()]
         })
         .collect();
-    let sphere = Surface::from_profile(&points).unwrap();
+    let sphere = Surface::from_profile(&points)
+        .unwrap()
+        .for_pattern(vstone_core::model::Pattern::VoronoiTriangles);
     for k in sphere.principal_curvatures(5.0) {
         assert!((k - 0.1).abs() < 0.003);
     }
-    let waist = Surface::from_profile(&[[9.0, 0.0], [5.0, 20.0], [9.0, 40.0]]).unwrap();
+    let waist = Surface::from_profile(&[[9.0, 0.0], [5.0, 20.0], [9.0, 40.0]])
+        .unwrap()
+        .for_pattern(vstone_core::model::Pattern::VoronoiTriangles);
     let k = waist.principal_curvatures(waist.length() / 2.0);
     assert!(k[0] > 0.0 && k[1] < 0.0);
     let mut i = input();
     i.params.randomness = 0.0;
-    let s = Surface::from_profile(&i.surface.profile).unwrap();
+    let s = Surface::from_profile(&i.surface.profile)
+        .unwrap()
+        .for_pattern(vstone_core::model::Pattern::VoronoiTriangles);
     let t = rectified::build(&s, &i.params).unwrap();
     for (row, r) in t.rows.iter().enumerate() {
         let sites: Vec<_> = t.delaunay.tiles.iter().filter(|x| x.row == row).collect();
@@ -225,7 +243,9 @@ fn horizontal_tangent_between_vertices_and_clamped_support_curvature() {
             [20.0 - 10.0 * a.cos(), 10.0 * a.sin()]
         })
         .collect();
-    let s = Surface::from_profile(&points).unwrap();
+    let s = Surface::from_profile(&points)
+        .unwrap()
+        .for_pattern(vstone_core::model::Pattern::VoronoiTriangles);
     for j in 0..=2000 {
         let k = s.principal_curvatures(s.length() * j as f64 / 2000.0);
         assert!(k.iter().all(|x| x.is_finite()));
@@ -241,7 +261,9 @@ fn horizontal_tangent_between_vertices_and_clamped_support_curvature() {
 #[test]
 fn invalid_settings_are_rejected() {
     let i = input();
-    let s = Surface::from_profile(&i.surface.profile).unwrap();
+    let s = Surface::from_profile(&i.surface.profile)
+        .unwrap()
+        .for_pattern(vstone_core::model::Pattern::VoronoiTriangles);
     let mut bad = Vec::new();
     let mut p = i.params.clone();
     p.pattern = Pattern::Voronoi;
@@ -279,8 +301,8 @@ fn section9_defaults_and_explicit_zero() {
     let i: CoreInput = serde_json::from_value(v.clone()).unwrap();
     assert!((i.params.depth - 0.25).abs() < 1e-15);
     assert_eq!(i.params.randomness, 0.);
-    assert_eq!(i.params.count_step, 2);
-    assert_eq!(i.params.min_triangle_edge, 1.5);
+    assert_eq!(i.params.max_polygon_edge, None);
+    assert_eq!(i.params.min_triangle_edge, 2.0);
     // The relief default is fixed inches, independent of the stone-size knob.
     v["params"]["max_polygon_edge"] = serde_json::json!(4.);
     let resized: CoreInput = serde_json::from_value(v.clone()).unwrap();
@@ -293,12 +315,12 @@ fn section9_defaults_and_explicit_zero() {
 #[test]
 fn section9_empty_triangle_interval_is_infeasible() {
     let i = input();
-    let s = Surface::from_profile(&i.surface.profile).unwrap();
+    let s = Surface::from_profile(&i.surface.profile)
+        .unwrap()
+        .for_pattern(vstone_core::model::Pattern::VoronoiTriangles);
     let mut p = i.params;
     p.min_triangle_edge = 4.;
-    p.max_polygon_edge = 3.;
-    assert_eq!(
-        rectified::row_layout::choose(&s, &p).unwrap_err(),
-        "no feasible A06 n/h layout: min_triangle_edge exceeds max_polygon_edge"
-    );
+    p.max_polygon_edge = Some(3.);
+    let error = rectified::row_layout::choose(&s, &p).unwrap_err();
+    assert!(error.contains("max_polygon_edge") && error.contains("s="));
 }

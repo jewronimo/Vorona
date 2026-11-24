@@ -100,7 +100,7 @@ fn select_ranked(
         return out;
     }
     let surface = match Surface::from_profile(&input.surface.profile) {
-        Ok(s) => s,
+        Ok(s) => s.for_pattern(input.params.pattern),
         Err(e) => {
             out.message =
                 format!("invalid surface: {e}; configured depth {configured}, selected depth none");

@@ -72,8 +72,10 @@ STEP headers get a fixed timestamp (`1970-01-01T00:00:00`) so files are reproduc
    housekeeping evidence); default ignored gates retain the other regressions,
    and the full production-selector matrix remains mandatory. Report-only depth1/2
    geometric failures must be reported separately.
-   A06 adds the cylinder/cone/vase smooth, random depth1 seeds1..10 and
-   symmetric depth1 matrix, plus depth1.5 report-only diagnostics (90s each).
+   A06 §9.6's six required cylinder/cone/vase smooth and symmetric 0.25-inch
+   relief cases block merge on any failure or timeout. Report-only cases never
+   block merge, but their failures and timeouts must be reported accurately.
+   Owner STEP review: smooth accepted; relief pending the dihedral symmetry fix.
    A06 §8.9 gates rotation-exact representative copies only where a row count
    equals BOTH neighbours; report every freely solved transition row with no
    symmetry claim. Gated-row geometry/spacing/size errors must be ≤1e-6 inch.

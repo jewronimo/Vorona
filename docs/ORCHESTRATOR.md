@@ -25,10 +25,13 @@ then `AGENTS.md`, `amendments/A04`–`A06` (A06 incl. §8 and §9), and the task
 ## 3. Design as of 2026-11-18 (owner decisions)
 - Pattern `voronoi_triangles` (A06): one polygon per seed + a triangle at every former 3-stone corner;
   every corner shared by 4 pieces, so the shell can follow straight surfaces (no rings).
-- §9 (addendum 2): small symmetric stones. Polygon and triangle sides ≤ 3 in, triangle sides ≥ 1.5 in,
-  isosceles symmetric triangles, **one stone count and one row height for the whole surface** (stones
-  stretch with the taper; count changes only if forced, in even steps). Symmetric relief default
-  depth **0.25 in**; random relief is experimental (fails often).
+- Owner decision 2026-11-19, A06 §9.2/§9.3: minimum stone side 2 inches on
+  polygons and triangles; no maximum by default, optional max_polygon_edge hard cap.
+  Always report actual maximum. One global n=floor(pi*r_min/minimum), n>=3;
+  h=sqrt(3)/2*2*pi*r_min/n, raised only enough for wider-row corner angles >=30°.
+  No count changes, sector-copy fallback or count_step setting. Infeasibility names
+  the row and limit; all blank/taper/mirror/other gates remain. Symmetric relief
+  defaults to 0.25 inches; random relief remains experimental.
 - Rims: level saw cut **always at the design ends (0 and H)**; avoid slivers by **shifting the pattern
   phase**, never the cut. Saw-cut edges exempt from max edge and from edge minimums; rim partials need a
   1.5 in minimum square.
@@ -37,12 +40,44 @@ then `AGENTS.md`, `amendments/A04`–`A06` (A06 incl. §8 and §9), and the task
 - Thickness 3/8 in; taper (bevel) cap 60°; plan-view corner angle ≥ 30°; pieces fit 12×12 blank (11.5 usable).
 - The older A05 pattern (`pattern = "voronoi"`) is kept unchanged with its own regression matrix.
 
+### Owner layout headroom / finished-edge decision — 2026-11-20
+
+`layout_headroom` is a finite nonnegative **fraction**, default **0.10**.
+`edge_shortfall` is a finite **fraction in [0, 0.5)**, default **0.0**.
+This decision supersedes the earlier unreserved count formula and n14/n9 examples.
+The owner tunes these per job; they are not fixed geometry constants.
+The global count is `floor(pi*r_min / ((1+layout_headroom)*min_triangle_edge))`,
+at least 3, using extrema anywhere on the profile. Height selection is unchanged.
+Finished whole polygon and triangle edges must be at least
+`(1-edge_shortfall)*min_triangle_edge`; polygon `min_edge` barrier uses the same
+whole-stone minimum. Rim partial exemptions remain unchanged. Headroom changes
+only nominal sizing; shortfall changes only the finished-edge lower gate.
+Report measured shortest outer edge (including exempt partials) and maximum
+whole-edge deficit below the requested minimum in inches; keep those distinct.
+`stats.actual_shortest_side` is null without pieces; `stats.actual_edge_shortfall`
+is zero without whole edges. Diagnostics emit the same fields.
+At defaults: cylinder r9 n12, cone9→6 n8, vase6–10 n8, flare6→15 n8.
+Layout side ranges are nominal, not a fitted-geometry manufacturing pass.
+
+| Profile | n | h (in) | Nominal triangle sides (in) |
+|---|---:|---:|---:|
+| cylinder | 12 | 4.081048570 | 2.356194490–2.356194490 |
+| cone | 8 | 4.081048570 | 2.356194490–3.534291735 |
+| vase | 8 | 4.081048570 | 2.356194490–3.926990817 |
+| flare | 8 | 4.081048570 | 2.356194490–5.890486225 |
+
+Flare sizing is **infeasible at default blank_usable=11.5**: nominal row
+envelope exceeds the blank (11.510404663 at s=30.122032655). Its table row
+is sizing-only with the reporting blank cap disabled; production gates are unchanged.
+
+
 ## 4. State on 2026-11-18
 - C5/C6 and C7 (flat transforms and conservative rectangle nesting) are merged into main. See git log for the merge commits and `tasks/C7-nesting.md` for review evidence.
 - Next: **S4** flat layout output, then S5–S7, I1 and G1, stopping for review before each merge. C7b shape-aware packing is a separate, not-started follow-up.
 - Known follow-ups: cylinder A05 r0.5/seed3 timeout (accepted); random relief rework. Requests 006 and 007 are tracked historical drafts; A06 §8 is the governing addendum.
 
 ## 5. How to check logs (device shell on the Mac)
+Full acceptance must run as a one-shot launchd job: `nohup` alone does not escape the agent exec process-group timeout. Create a uniquely labeled plist with `RunAtLoad` true, `KeepAlive` false, `AbandonProcessGroup` true, a full PATH including Docker, and stdout/stderr under `runs/logs/`; include no recurring triggers. Bootstrap it into `gui/$(id -u)` and immediately delete the plist. Return without waiting; monitor heartbeat and summaries later. After completion, boot out the label and confirm no Vorona launchd jobs remain.
 Repo on the Mac: `~/Projects/Vorona/voronoi-stone`; worktrees in `runs/worktrees/<card>/`, logs in each
 worktree's `runs/logs/`. Git inside worktrees fails from the linked VM (absolute /Users paths); run git from
 the main folder and compare files with `cmp <(git show <commit>:<path>) <worktree>/<path>`.

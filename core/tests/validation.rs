@@ -20,6 +20,7 @@ fn fixture() -> (Assembly, CoreInput) {
             rim_heights: [0., 6.],
             pattern_phase: 0.,
             symmetry_rows: vec![],
+            outer_envelope_rows: vec![],
             closure: c,
             back_gap: [0.; 3],
             per_piece_back_gap: vec![],
