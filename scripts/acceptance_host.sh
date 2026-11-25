@@ -26,6 +26,7 @@ PYHASH
 printf 'logs=%s\n' "$logdir"
 worker=
 heartbeat=
+memory_sampler=
 host_pid=$$
 cleanup() {
     result=$?
@@ -33,6 +34,10 @@ cleanup() {
     if [ -n "$heartbeat" ]; then
         kill "$heartbeat" 2>/dev/null || true
         wait "$heartbeat" 2>/dev/null || true
+    fi
+    if [ -n "$memory_sampler" ]; then
+        kill "$memory_sampler" 2>/dev/null || true
+        wait "$memory_sampler" 2>/dev/null || true
     fi
     docker exec -w "$workdir" "$container" python scripts/acceptance_control.py stop "$stamp" || result=1
     if [ -n "$worker" ]; then
@@ -51,6 +56,8 @@ trap cleanup EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
+python3 "$PWD/scripts/acceptance_memory.py" "$container" "$logdir" &
+memory_sampler=$!
 touch "$logdir/host-heartbeat"
 (
     while kill -0 "$host_pid" 2>/dev/null; do
@@ -59,7 +66,7 @@ touch "$logdir/host-heartbeat"
     done
 ) &
 heartbeat=$!
-docker exec -e "ACCEPTANCE_STAMP=$stamp" \
+docker exec -e "ACCEPT_LANES=${ACCEPT_LANES:-10}" -e "ACCEPTANCE_STAMP=$stamp" \
     -e "ACCEPTANCE_LOGDIR=$workdir/runs/logs/acceptance-$stamp" \
     -e "ACCEPTANCE_HEARTBEAT=$workdir/runs/logs/acceptance-$stamp/host-heartbeat" \
     -w "$workdir" "$container" python scripts/acceptance_control.py run "$stamp" &
