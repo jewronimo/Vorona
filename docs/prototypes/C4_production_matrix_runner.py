@@ -6,6 +6,9 @@ import json
 import subprocess
 import time
 import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+from acceptance_lanes import run_lanes
 
 p = argparse.ArgumentParser(__doc__)
 p.add_argument('binary')
@@ -14,11 +17,12 @@ p.add_argument('--organic-timeout', type=float, default=90)
 a = p.parse_args()
 if not (0 < a.symmetric_timeout < float("inf") and 0 < a.organic_timeout < float("inf")):
     p.error("deadlines must be positive finite seconds")
-records = []
-for profile in ('cylinder', 'cone_9_to_6', 'vase_bulge'):
-    cases = [(1.5, r, s) for r in (0, .5, 1) for s in range(1, 11)]
-    cases += [(1., 0, 1), (2., 0, 1)]
-    for depth, randomness, seed in cases:
+cases = [(profile, depth, randomness, seed)
+         for profile in ('cylinder', 'cone_9_to_6', 'vase_bulge')
+         for depth, randomness, seed in ([(1.5, r, s) for r in (0, .5, 1) for s in range(1, 11)] + [(1., 0, 1), (2., 0, 1)])]
+durations = json.loads((Path(__file__).resolve().parents[2] / 'scripts/acceptance_durations.json').read_text())['a05']
+def run_case(case, cpu):
+        profile, depth, randomness, seed = case
         deadline = a.symmetric_timeout if randomness == 0 else a.organic_timeout
         start = time.monotonic()
         record = dict(harness='production-configured-first-v3', profile=profile,
@@ -27,7 +31,7 @@ for profile in ('cylinder', 'cone_9_to_6', 'vase_bulge'):
                       timed_out=False,
                       passed=False)
         try:
-            done = subprocess.run([a.binary, profile, str(depth), str(randomness),
+            done = subprocess.run(["taskset", "-c", str(cpu), a.binary, profile, str(depth), str(randomness),
                                    str(seed)], capture_output=True, text=True,
                                   timeout=deadline, check=False)
             record['returncode'] = done.returncode
@@ -58,8 +62,11 @@ for profile in ('cylinder', 'cone_9_to_6', 'vase_bulge'):
                              'accepted_known_timeout' if known_timeout else
                              'accepted_report_only_timeout' if report_timeout else
                              'new_failure' if record['acceptance'] else 'report_only_failure')
-        records.append(record)
-        print(json.dumps(record), flush=True)
+        return record
+records = run_lanes(cases, run_case, lambda c: durations.get('|'.join(map(str, c)), 0))
+records.sort(key=lambda r: (r['profile'], r['configured_depth'], r['randomness'], r['seed']))
+for record in records:
+    print(json.dumps(record), flush=True)
 summary = {name: sum(r['outcome'] == name for r in records) for name in
            ('pass', 'accepted_known_timeout', 'accepted_report_only_timeout', 'new_failure', 'report_only_failure')}
 summary.update(records=len(records), acceptance_records=sum(r['acceptance'] for r in records),

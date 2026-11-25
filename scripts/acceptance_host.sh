@@ -59,7 +59,7 @@ touch "$logdir/host-heartbeat"
     done
 ) &
 heartbeat=$!
-docker exec -e "ACCEPTANCE_STAMP=$stamp" \
+docker exec -e "ACCEPT_LANES=${ACCEPT_LANES:-10}" -e "ACCEPTANCE_STAMP=$stamp" \
     -e "ACCEPTANCE_LOGDIR=$workdir/runs/logs/acceptance-$stamp" \
     -e "ACCEPTANCE_HEARTBEAT=$workdir/runs/logs/acceptance-$stamp/host-heartbeat" \
     -w "$workdir" "$container" python scripts/acceptance_control.py run "$stamp" &
