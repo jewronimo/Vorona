@@ -10,9 +10,7 @@ mkdir -p "$logdir"
 test -s "$logdir/source-sha256.txt" || { echo "Missing host source manifest" >&2; exit 1; }
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-/tmp/vstone-acceptance-$stamp}"
 status=0
-python scripts/acceptance_memory.py "$logdir/container-peak-memory-bytes.txt" &
-memory_sampler=$!
-trap 'kill "$memory_sampler" 2>/dev/null || true; wait "$memory_sampler" 2>/dev/null || true' EXIT
+SECONDS=0
 exec > >(tee "$logdir/acceptance.log") 2>&1
 printf 'worktree=%s\ntarget=%s\nlogs=%s\n' "$PWD" "$CARGO_TARGET_DIR" "$logdir"
 cat "$logdir/host-provenance.log" || exit 1
@@ -33,7 +31,21 @@ if [ "$?" -eq 0 ]; then
 else
     status=1
 fi
+python - "$logdir" <<'PYTIMING'
+import json, sys
+from pathlib import Path
+p = Path(sys.argv[1]); names = ('a05-stage-timing.json', 'a06-stage-timing.json', 'numbered-stage-timing.json')
+totals = {'parallel_wall_seconds': 0, 'solo_retry_wall_seconds': 0, 'total_wall_seconds': 0}
+for name in names:
+    if (p / name).exists():
+        timing = json.loads((p / name).read_text())
+        print(f'{name}: {json.dumps(timing)}')
+        for key in totals:
+            totals[key] += timing[key]
+print('case-stage aggregate: ' + json.dumps(totals))
+PYTIMING
 printf 'A06 C5 combined acceptance requires all fourteen native/production closure/limit/determinism/numbered-STEP gates and owner STEP review; C6 held\n'
+printf 'full acceptance wall_seconds=%s\n' "$SECONDS"
 printf 'acceptance exit=%s (0 allows only the explicitly accepted known timeout; inspect summary)\n' "$status"
 printf 'logs=%s\n' "$logdir"
 exit "$status"

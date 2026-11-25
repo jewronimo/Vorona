@@ -60,7 +60,8 @@ def main():
             previous = signal.pthread_sigmask(signal.SIG_BLOCK, blocked)
             try:
                 child = subprocess.Popen(
-                    ["bash", "scripts/acceptance.sh"], start_new_session=True
+                    ["bash", "scripts/acceptance.sh"], start_new_session=True,
+                    preexec_fn=lambda: signal.pthread_sigmask(signal.SIG_SETMASK, previous)
                 )
             finally:
                 signal.pthread_sigmask(signal.SIG_SETMASK, previous)

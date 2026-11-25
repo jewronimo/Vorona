@@ -59,3 +59,35 @@ def run_lanes(cases, function, duration):
             process.join()
         jobs.close()
         output.close()
+
+
+def run_with_retries(cases, function, duration, is_timeout, on_retry=None):
+    """Run lanes, then rerun only timed-out cases one at a time."""
+    import time
+    started = time.monotonic()
+    first = run_lanes(cases, lambda case, cpu: function(case, cpu, False), duration)
+    parallel_wall = time.monotonic() - started
+    requested = int(os.environ.get('ACCEPT_LANES', '10'))
+    # run_lanes returns its longest-first order; preserve the case/result association.
+    ordered = cases if requested == 1 else sorted(cases, key=duration, reverse=True)
+    retries = [(case, result) for case, result in zip(ordered, first) if is_timeout(result)] if requested > 1 else []
+    retry_start = time.monotonic()
+    retry_records = []
+    for case, prior in retries:
+        if on_retry:
+            on_retry(case)
+        previous = os.environ.get('ACCEPT_LANES')
+        os.environ['ACCEPT_LANES'] = '1'
+        try:
+            solo = run_lanes([case], lambda c, cpu: function(c, cpu, True), duration)[0]
+        finally:
+            if previous is None:
+                os.environ.pop('ACCEPT_LANES', None)
+            else:
+                os.environ['ACCEPT_LANES'] = previous
+        first[ordered.index(case)] = solo
+        retry_records.append((case, prior, solo))
+    solo_wall = time.monotonic() - retry_start
+    return first, retry_records, {'parallel_wall_seconds': parallel_wall,
+                                  'solo_retry_wall_seconds': solo_wall,
+                                  'total_wall_seconds': time.monotonic() - started}

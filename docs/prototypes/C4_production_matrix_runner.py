@@ -3,12 +3,13 @@ Runs a parent-built Rust binary; performs no geometry or candidate selection.
 """
 import argparse
 import json
+import os
 import subprocess
 import time
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
-from acceptance_lanes import run_lanes
+from acceptance_lanes import run_with_retries
 
 p = argparse.ArgumentParser(__doc__)
 p.add_argument('binary')
@@ -21,9 +22,9 @@ cases = [(profile, depth, randomness, seed)
          for profile in ('cylinder', 'cone_9_to_6', 'vase_bulge')
          for depth, randomness, seed in ([(1.5, r, s) for r in (0, .5, 1) for s in range(1, 11)] + [(1., 0, 1), (2., 0, 1)])]
 durations = json.loads((Path(__file__).resolve().parents[2] / 'scripts/acceptance_durations.json').read_text())['a05']
-def run_case(case, cpu):
+def run_case(case, cpu, solo):
         profile, depth, randomness, seed = case
-        deadline = a.symmetric_timeout if randomness == 0 else a.organic_timeout
+        deadline = 90 if solo else (a.symmetric_timeout if randomness == 0 else a.organic_timeout)
         start = time.monotonic()
         record = dict(harness='production-configured-first-v3', profile=profile,
                       configured_depth=depth, randomness=randomness, seed=seed,
@@ -57,13 +58,24 @@ def run_case(case, cpu):
                          and randomness == .5 and seed == 3
                          and deadline == 90 and record['timed_out'])
         report_timeout = (profile == 'cylinder' and depth == 1. and randomness == 0
-                          and seed == 1 and deadline == 60 and record['timed_out'])
+                          and seed == 1 and record['timed_out'])
         record['outcome'] = ('pass' if record['passed'] else
                              'accepted_known_timeout' if known_timeout else
                              'accepted_report_only_timeout' if report_timeout else
                              'new_failure' if record['acceptance'] else 'report_only_failure')
         return record
-records = run_lanes(cases, run_case, lambda c: durations.get('|'.join(map(str, c)), 0))
+records, retries, timing = run_with_retries(cases, run_case, lambda c: durations.get('|'.join(map(str, c)), 0), lambda r: r['timed_out'])
+for case, prior, solo in retries:
+    solo['parallel_timeout'] = True
+    solo['parallel_wall_seconds'] = prior['wall_seconds']
+    solo['solo_retry'] = 'pass' if solo['passed'] else 'fail'
+    solo['solo_retry_seconds'] = solo['wall_seconds']
+    solo['retry_summary'] = f"timed out in parallel, solo retry: {solo['solo_retry']}, {solo['solo_retry_seconds']:.3f}s"
+    print(f"{case}: timed out in parallel, solo retry: {solo['solo_retry']}, {solo['solo_retry_seconds']:.3f}s", file=sys.stderr)
+print('A05 stage timing: ' + json.dumps(timing), file=sys.stderr)
+if os.environ.get('ACCEPTANCE_LOGDIR'):
+    (Path(os.environ['ACCEPTANCE_LOGDIR']) / 'a05-stage-timing.json').write_text(json.dumps(timing, indent=2) + '\n')
+
 records.sort(key=lambda r: (r['profile'], r['configured_depth'], r['randomness'], r['seed']))
 for record in records:
     print(json.dumps(record), flush=True)

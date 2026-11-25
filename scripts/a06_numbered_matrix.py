@@ -4,7 +4,7 @@ from pathlib import Path
 import subprocess
 import sys
 import time
-from acceptance_lanes import run_lanes
+from acceptance_lanes import run_with_retries
 
 from vstone.step_out import write_assembled
 
@@ -26,7 +26,7 @@ def main():
             for depth in (0.0, 0.25):
                 cases.append((mode, profile, depth))
     durations = json.loads(Path('scripts/acceptance_durations.json').read_text())['numbered']
-    def run(case, cpu):
+    def run(case, cpu, solo):
                 mode, profile, depth = case
                 points = profiles[profile]
                 key = f'{profile}-{mode}-d{depth}'
@@ -57,14 +57,26 @@ def main():
                     if not result['pieces'] or any(piece['id'].encode() not in content for piece in result['pieces']):
                         raise RuntimeError('numbered STEP lacks piece labels')
                     record.update(passed=True, step=str(step), step_bytes=step.stat().st_size)
+                except subprocess.TimeoutExpired as error:
+                    record.update(passed=False, timed_out=True, error=str(error))
                 except Exception as error:
-                    record.update(passed=False, error=str(error))
+                    record.update(passed=False, timed_out=False, error=str(error))
                 record['seconds'] = time.monotonic() - start
                 return record
     def duration(case):
         mode, profile, depth = case
         return durations.get(f'{profile}-{mode}-d{depth}', 0)
-    records = run_lanes(cases, run, duration)
+    def preserve(case):
+        mode, profile, depth = case
+        key = f'{profile}-{mode}-d{depth}'
+        for path in out.glob(f'{key}-*'):
+            path.rename(path.with_name(path.name + '.parallel'))
+    records, retries, timing = run_with_retries(cases, run, duration, lambda r: r.get('timed_out', False), preserve)
+    for _, prior, solo in retries:
+        solo.update(parallel_timeout=True, parallel_seconds=prior['seconds'],
+                    solo_retry='pass' if solo['passed'] else 'fail', solo_retry_seconds=solo['seconds'])
+        solo['retry_summary'] = f"timed out in parallel, solo retry: {solo['solo_retry']}, {solo['seconds']:.3f}s"
+    (out / 'numbered-stage-timing.json').write_text(json.dumps(timing, indent=2) + '\n')
     records.sort(key=lambda r: r['case'])
     (out / 'a06-numbered-summary.jsonl').write_text(''.join(json.dumps(r) + '\n' for r in records))
     return int(any(not r['passed'] for r in records))
