@@ -64,7 +64,7 @@ def run_case(case, cpu, solo):
                              'accepted_report_only_timeout' if report_timeout else
                              'new_failure' if record['acceptance'] else 'report_only_failure')
         return record
-records, retries, timing = run_with_retries(cases, run_case, lambda c: durations.get('|'.join(map(str, c)), 0), lambda r: r['timed_out'])
+records, retries, timing = run_with_retries(cases, run_case, lambda c: durations.get('|'.join(map(str, c)), 0), lambda r: r['timed_out'], should_retry=lambda case, r: r['acceptance'] and r['outcome'] != 'accepted_known_timeout')
 for case, prior, solo in retries:
     solo['parallel_timeout'] = True
     solo['parallel_wall_seconds'] = prior['wall_seconds']
@@ -75,6 +75,13 @@ for case, prior, solo in retries:
 print('A05 stage timing: ' + json.dumps(timing), file=sys.stderr)
 if os.environ.get('ACCEPTANCE_LOGDIR'):
     (Path(os.environ['ACCEPTANCE_LOGDIR']) / 'a05-stage-timing.json').write_text(json.dumps(timing, indent=2) + '\n')
+
+for record in records:
+    if record['timed_out'] and not record['acceptance'] and int(os.environ.get('ACCEPT_LANES', '10')) > 1:
+        record['retry_summary'] = 'timed out in parallel (report-only, not retried)'
+        print(f"{record['profile']} depth={record['configured_depth']} randomness={record['randomness']} seed={record['seed']}: {record['retry_summary']}", file=sys.stderr)
+    elif record['outcome'] == 'accepted_known_timeout':
+        record['retry_summary'] = 'known accepted timeout, not retried'
 
 records.sort(key=lambda r: (r['profile'], r['configured_depth'], r['randomness'], r['seed']))
 for record in records:
@@ -88,5 +95,6 @@ print(json.dumps(summary), file=sys.stderr, flush=True)
 # report-only 60s timeout. Neither provides geometry or closure measurements.
 # Report-only geometry failures are informational; process/JSON failures are not.
 infrastructure_failure = any(not r.get('measurement') and
-                             r['outcome'] not in ('accepted_known_timeout', 'accepted_report_only_timeout') for r in records)
+                             r['outcome'] not in ('accepted_known_timeout', 'accepted_report_only_timeout') and
+                             not (not r['acceptance'] and r['timed_out']) for r in records)
 sys.exit(1 if summary['new_failure'] or infrastructure_failure else 0)

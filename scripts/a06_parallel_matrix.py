@@ -1,5 +1,6 @@
 """Run A06 native cases in isolated, CPU-pinned lanes."""
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -42,14 +43,14 @@ def preserve(case):
         path = out / f'a06-{key}{suffix}'
         if path.exists():
             path.rename(path.with_name(path.name + '.parallel'))
-results, retries, timing = run_with_retries(cases, run, lambda c: {'random':90, 'doubled':90, 'symmetric':40, 'smooth':5}[c[2]], lambda r: r[4], preserve)
+results, retries, timing = run_with_retries(cases, run, lambda c: {'random':90, 'doubled':90, 'symmetric':40, 'smooth':5}[c[2]], lambda r: r[4], preserve, should_retry=lambda case, r: r[2] == 'required')
 retry_by_key = {solo[0]: solo for _, _, solo in retries}
 (out / 'a06-stage-timing.json').write_text(json.dumps(timing, indent=2) + '\n')
 
 results.sort()
 (out / 'a06-summary.log').write_text(''.join(
     f'{k} exit={rc} budget=90s-including-deterministic-repeat gate={gate}' +
-    (f' timed out in parallel, solo retry: {"pass" if rc == 0 else "fail"}, {seconds:.3f}s' if k in retry_by_key else '') + '\n'
-    for k,rc,gate,seconds,_ in results))
+    (f' timed out in parallel, solo retry: {"pass" if rc == 0 else "fail"}, {seconds:.3f}s' if k in retry_by_key else (' timed out in parallel (report-only, not retried)' if timed_out and gate == 'report-only' and int(os.environ.get('ACCEPT_LANES', '10')) > 1 else '')) + '\n'
+    for k,rc,gate,seconds,timed_out in results))
 (out / 'a06-timings.json').write_text(json.dumps({k: t for k,_,_,t,_ in results}, sort_keys=True, indent=2)+'\n')
 sys.exit(int(any(rc != 0 and gate == 'required' for _,rc,gate,_,_ in results)))

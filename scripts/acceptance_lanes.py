@@ -5,7 +5,7 @@ import queue
 import traceback
 
 
-def run_lanes(cases, function, duration):
+def lane_count():
     cpus = sorted(os.sched_getaffinity(0))
     requested = int(os.environ.get('ACCEPT_LANES', '10'))
     with open('/sys/fs/cgroup/cpu.max') as stream:
@@ -14,6 +14,12 @@ def run_lanes(cases, function, duration):
     maximum = capacity - 2
     if requested < 1 or maximum < 1 or requested > maximum:
         raise ValueError(f'ACCEPT_LANES={requested}, allowed 1..{maximum} (CPU capacity {capacity})')
+    return requested
+
+
+def run_lanes(cases, function, duration):
+    cpus = sorted(os.sched_getaffinity(0))
+    requested = lane_count()
     if not cases:
         return []
     ordered = cases if requested == 1 else sorted(cases, key=duration, reverse=True)
@@ -61,7 +67,7 @@ def run_lanes(cases, function, duration):
         output.close()
 
 
-def run_with_retries(cases, function, duration, is_timeout, on_retry=None):
+def run_with_retries(cases, function, duration, is_timeout, on_retry=None, should_retry=None):
     """Run lanes, then rerun only timed-out cases one at a time."""
     import time
     started = time.monotonic()
@@ -70,7 +76,8 @@ def run_with_retries(cases, function, duration, is_timeout, on_retry=None):
     requested = int(os.environ.get('ACCEPT_LANES', '10'))
     # run_lanes returns its longest-first order; preserve the case/result association.
     ordered = cases if requested == 1 else sorted(cases, key=duration, reverse=True)
-    retries = [(case, result) for case, result in zip(ordered, first) if is_timeout(result)] if requested > 1 else []
+    retries = [(case, result) for case, result in zip(ordered, first)
+               if is_timeout(result) and (should_retry is None or should_retry(case, result))] if requested > 1 else []
     retry_start = time.monotonic()
     retry_records = []
     for case, prior in retries:
