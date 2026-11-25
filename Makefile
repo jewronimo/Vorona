@@ -23,7 +23,7 @@ dev-image:
 # `make dev-shell` into the exact same container a failing dev-check just used.
 dev-up:
 	@docker ps -q -f name=^/$(DEV_CONTAINER)$$ | grep -q . || \
-	docker run -d --name $(DEV_CONTAINER) --cpus=4 --memory=4g \
+	docker run -d --name $(DEV_CONTAINER) --cpus=12 --memory=32g --memory-swap=32g \
 	 -v "$(CURDIR)":/src \
 	 -v vstone-cargo-target:/src/core/target \
 	 -v vstone-cargo-registry:/usr/local/cargo/registry \
